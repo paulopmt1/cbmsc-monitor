@@ -144,8 +144,15 @@ app.get('/readOccurrences', async (req, res) => {
     const requestData = {
       "user": {
         "cidade": [
-          8379,
-          8177
+          8031,
+          8107,
+          8131,
+          9229,
+          8177,
+          8255,
+          8303,
+          8353,
+          8379
         ]
       },
       "emergencies": [
@@ -230,8 +237,33 @@ app.get('/readOccurrences', async (req, res) => {
           // Extract emergency type ID from the occurrence data
           const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
           
-          // Extract city ID from the occurrence data
+          // Extract city ID and name from the occurrence data
           const cityId = parseInt(occurrence.id_cidade) || null;
+          const cityName = occurrence.nm_cidade || null;
+          
+          // Handle city creation if it doesn't exist
+          let finalCityId = cityId;
+          if (cityId && cityName) {
+            // Check if city exists in our cities table
+            const existingCity = await sql`
+              SELECT id_cidade FROM cities WHERE id_cidade = ${cityId}
+            `;
+            
+            if (existingCity.length === 0) {
+              // City doesn't exist, create it
+              try {
+                await sql`
+                  INSERT INTO cities (id_cidade, nome_cidade) 
+                  VALUES (${cityId}, ${cityName})
+                  ON CONFLICT (id_cidade) DO NOTHING
+                `;
+                console.log(`Created new city: ${cityName} (ID: ${cityId})`);
+              } catch (cityError) {
+                console.error(`Error creating city ${cityName}:`, cityError.message);
+                // Continue with the occurrence insertion even if city creation fails
+              }
+            }
+          }
           
           // Extract GPS coordinates from the data
           const latitude = occurrence.lat_logradouro ? parseFloat(occurrence.lat_logradouro) : null;
@@ -244,7 +276,7 @@ app.get('/readOccurrences', async (req, res) => {
           // Save the object to database with foreign keys, GPS coordinates, and timestamp
           await sql`
             INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, id_cidade, lat_logradouro, long_logradouro, data, ts_ocorrencia) 
-            VALUES (${occurrence.id_ocorrencia}, ${emergencyTypeId}, ${cityId}, ${latitude}, ${longitude}, ${occurrence}, ${occurrenceTimestamp})
+            VALUES (${occurrence.id_ocorrencia}, ${emergencyTypeId}, ${finalCityId}, ${latitude}, ${longitude}, ${occurrence}, ${occurrenceTimestamp})
           `;
           savedCount++;
         } else {
