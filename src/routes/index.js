@@ -9,7 +9,7 @@ const occurrencesRoutes = require('./occurrences');
 const referenceRoutes = require('./reference');
 
 // Mount route modules
-router.use('/', occurrencesRoutes);
+router.use('/occurrences', occurrencesRoutes);
 router.use('/', referenceRoutes);
 
 // Root endpoint - serve the web interface

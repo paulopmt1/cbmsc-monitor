@@ -6,7 +6,7 @@ const { emergencyTypes, cities, apiRequestData } = require('../models/data');
 const router = express.Router();
 
 // /readOccurrences endpoint
-router.get('/readOccurrences', async (req, res) => {
+router.get('/readNewOccurrences', async (req, res) => {
   try {
     const response = await axios.post('https://api-gateway.cbm.sc.gov.br/cidadao/ocorrencias/listar/', apiRequestData);
     
