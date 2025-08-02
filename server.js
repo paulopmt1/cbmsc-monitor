@@ -10,6 +10,9 @@ app.use(express.json());
 // Middleware to parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files
+app.use(express.static('public'));
+
 // Initialize database
 const db = new sqlite3.Database('./occurrences.db', (err) => {
   if (err) {
@@ -446,10 +449,15 @@ app.delete('/occurrences/:id', (req, res) => {
   });
 });
 
-// Root endpoint for testing
+// Root endpoint - serve the web interface
 app.get('/', (req, res) => {
+  res.sendFile('index.html', { root: './public' });
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
   res.json({ 
-    message: 'Server is running!', 
+    message: 'CBM SC Monitor API', 
     endpoints: [
       '/readOccurrences',
       '/occurrences',

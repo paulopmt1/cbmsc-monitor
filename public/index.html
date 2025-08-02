@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBM SC Monitor - Ocorrências</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .filters h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e8ed;
+            border-radius: 6px;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .filter-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .stats {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            background: #667eea;
+            color: white;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .occurrences-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .occurrence-card {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border-left: 5px solid #667eea;
+        }
+
+        .occurrence-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .occurrence-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .emergency-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.5rem;
+            color: white;
+        }
+
+        .emergency-info h3 {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+
+        .emergency-info .city {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .occurrence-details {
+            margin-bottom: 15px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+
+        .detail-value {
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .coordinates {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .coordinates h4 {
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .coordinate-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #7f8c8d;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 20px;
+            border-radius: 6px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .no-data {
+            background: white;
+            border-radius: 8px;
+            padding: 50px;
+            text-align: center;
+            color: #7f8c8d;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .filter-row {
+                flex-direction: column;
+            }
+            
+            .occurrences-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 CBM SC Monitor</h1>
+            <p>Monitoramento de Ocorrências do Corpo de Bombeiros de Santa Catarina</p>
+        </div>
+
+        <div class="filters">
+            <h2>🔍 Filtros</h2>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="cityFilter">Cidade:</label>
+                    <select id="cityFilter">
+                        <option value="">Todas as cidades</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="emergencyFilter">Tipo de Emergência:</label>
+                    <select id="emergencyFilter">
+                        <option value="">Todos os tipos</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats">
+            <h2>📊 Estatísticas</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalOccurrences">0</div>
+                    <div class="stat-label">Total de Ocorrências</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="filteredOccurrences">0</div>
+                    <div class="stat-label">Ocorrências Filtradas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalCities">0</div>
+                    <div class="stat-label">Cidades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalEmergencyTypes">0</div>
+                    <div class="stat-label">Tipos de Emergência</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">Carregando ocorrências...</div>
+        </div>
+    </div>
+
+    <script>
+        // Emergency type icons mapping
+        const emergencyIcons = {
+            'Acidente de Trânsito': { icon: '🚗', color: '#e74c3c' },
+            'Atendimento Pré-Hospitalar': { icon: '🚑', color: '#3498db' },
+            'Auxílios/Apoios': { icon: '🆘', color: '#f39c12' },
+            'Averiguação/Corte de Árvore': { icon: '🌳', color: '#27ae60' },
+            'Averiguação/Manejo de Inseto': { icon: '🐛', color: '#8e44ad' },
+            'Ação Preventiva Social': { icon: '👥', color: '#16a085' },
+            'Ações Preventivas': { icon: '🛡️', color: '#2980b9' },
+            'Diversos': { icon: '📋', color: '#95a5a6' },
+            'Incêndio': { icon: '🔥', color: '#e67e22' },
+            'Produtos Perigosos': { icon: '☣️', color: '#c0392b' },
+            'Risco Potencial': { icon: '⚠️', color: '#f1c40f' },
+            'Salvamento/Busca/Resgate': { icon: '🆘', color: '#e74c3c' }
+        };
+
+        // API base URL
+        const API_BASE = window.location.origin;
+
+        // State
+        let allOccurrences = [];
+        let cities = [];
+        let emergencyTypes = [];
+
+        // Initialize the application
+        async function init() {
+            try {
+                await Promise.all([
+                    loadOccurrences(),
+                    loadCities(),
+                    loadEmergencyTypes()
+                ]);
+                
+                setupFilters();
+                updateStats();
+                renderOccurrences(allOccurrences);
+            } catch (error) {
+                showError('Erro ao carregar dados: ' + error.message);
+            }
+        }
+
+        // Load occurrences
+        async function loadOccurrences() {
+            const response = await fetch(`${API_BASE}/occurrences?limit=100`);
+            const data = await response.json();
+            
+            if (data.message === 'ok') {
+                allOccurrences = data.data;
+            } else {
+                throw new Error('Falha ao carregar ocorrências');
+            }
+        }
+
+        // Load cities
+        async function loadCities() {
+            const response = await fetch(`${API_BASE}/cities`);
+            const data = await response.json();
+            
+            if (data.message === 'ok') {
+                cities = data.data;
+            } else {
+                throw new Error('Falha ao carregar cidades');
+            }
+        }
+
+        // Load emergency types
+        async function loadEmergencyTypes() {
+            const response = await fetch(`${API_BASE}/emergency-types`);
+            const data = await response.json();
+            
+            if (data.message === 'ok') {
+                emergencyTypes = data.data;
+            } else {
+                throw new Error('Falha ao carregar tipos de emergência');
+            }
+        }
+
+        // Setup filters
+        function setupFilters() {
+            const cityFilter = document.getElementById('cityFilter');
+            const emergencyFilter = document.getElementById('emergencyFilter');
+
+            // Populate city filter
+            cities.forEach(city => {
+                const option = document.createElement('option');
+                option.value = city.nome_cidade;
+                option.textContent = city.nome_cidade;
+                cityFilter.appendChild(option);
+            });
+
+            // Populate emergency type filter
+            emergencyTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type.title;
+                option.textContent = type.title;
+                emergencyFilter.appendChild(option);
+            });
+
+            // Add event listeners
+            cityFilter.addEventListener('change', filterOccurrences);
+            emergencyFilter.addEventListener('change', filterOccurrences);
+        }
+
+        // Filter occurrences
+        function filterOccurrences() {
+            const cityFilter = document.getElementById('cityFilter').value;
+            const emergencyFilter = document.getElementById('emergencyFilter').value;
+
+            let filtered = allOccurrences;
+
+            if (cityFilter) {
+                filtered = filtered.filter(occurrence => 
+                    occurrence.city_name === cityFilter
+                );
+            }
+
+            if (emergencyFilter) {
+                filtered = filtered.filter(occurrence => 
+                    occurrence.emergency_type_title === emergencyFilter
+                );
+            }
+
+            renderOccurrences(filtered);
+            updateStats(filtered);
+        }
+
+        // Render occurrences
+        function renderOccurrences(occurrences) {
+            const content = document.getElementById('content');
+
+            if (occurrences.length === 0) {
+                content.innerHTML = `
+                    <div class="no-data">
+                        <h3>Nenhuma ocorrência encontrada</h3>
+                        <p>Tente ajustar os filtros para ver mais resultados.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const occurrencesHTML = occurrences.map(occurrence => {
+                const iconInfo = emergencyIcons[occurrence.emergency_type_title] || 
+                                { icon: '❓', color: '#95a5a6' };
+
+                const occurrenceDate = new Date(occurrence.ts_ocorrencia).toLocaleString('pt-BR');
+                const createdDate = new Date(occurrence.created_at).toLocaleString('pt-BR');
+
+                return `
+                    <div class="occurrence-card">
+                        <div class="occurrence-header">
+                            <div class="emergency-icon" style="background-color: ${iconInfo.color}">
+                                ${iconInfo.icon}
+                            </div>
+                            <div class="emergency-info">
+                                <h3>${occurrence.emergency_type_title}</h3>
+                                <div class="city">📍 ${occurrence.city_name}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="occurrence-details">
+                            <div class="detail-row">
+                                <span class="detail-label">ID:</span>
+                                <span class="detail-value">${occurrence.id_ocorrencia}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Data da Ocorrência:</span>
+                                <span class="detail-value">${occurrenceDate}</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Registrado em:</span>
+                                <span class="detail-value">${createdDate}</span>
+                            </div>
+                        </div>
+
+                        ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
+                            <div class="coordinates">
+                                <h4>📍 Coordenadas GPS</h4>
+                                <div class="coordinate-item">
+                                    <span>Latitude:</span>
+                                    <span>${occurrence.lat_logradouro}</span>
+                                </div>
+                                <div class="coordinate-item">
+                                    <span>Longitude:</span>
+                                    <span>${occurrence.long_logradouro}</span>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="occurrences-grid">
+                    ${occurrencesHTML}
+                </div>
+            `;
+        }
+
+        // Update statistics
+        function updateStats(filteredOccurrences = null) {
+            const totalOccurrences = document.getElementById('totalOccurrences');
+            const filteredOccurrencesEl = document.getElementById('filteredOccurrences');
+            const totalCities = document.getElementById('totalCities');
+            const totalEmergencyTypes = document.getElementById('totalEmergencyTypes');
+
+            totalOccurrences.textContent = allOccurrences.length;
+            filteredOccurrencesEl.textContent = filteredOccurrences ? filteredOccurrences.length : allOccurrences.length;
+            totalCities.textContent = cities.length;
+            totalEmergencyTypes.textContent = emergencyTypes.length;
+        }
+
+        // Show error
+        function showError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="error">
+                    <h3>Erro</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html> 

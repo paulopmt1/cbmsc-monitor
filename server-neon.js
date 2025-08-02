@@ -11,6 +11,9 @@ app.use(express.json());
 // Middleware to parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static files
+app.use(express.static('public'));
+
 // CORS middleware
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -545,10 +548,15 @@ app.delete('/occurrences/:id', async (req, res) => {
   }
 });
 
-// Root endpoint for testing
+// Root endpoint - serve the web interface
 app.get('/', (req, res) => {
+  res.sendFile('index.html', { root: './public' });
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
   res.json({ 
-    message: 'Server is running with Neon Database!', 
+    message: 'CBM SC Monitor API', 
     endpoints: [
       '/readOccurrences',
       '/occurrences',
