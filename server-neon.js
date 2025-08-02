@@ -4,6 +4,7 @@ const { neon } = require('@neondatabase/serverless');
 const path = require('path');
 const fs = require('fs');
 require('dotenv').config();
+const PORT = process.env.PORT || 3000;
 
 const app = express();
 
@@ -272,9 +273,9 @@ app.get('/readOccurrences', async (req, res) => {
   }
 });
 
-// Get all occurrences with emergency type information
-app.get('/occurrences', async (req, res) => {
-  try {
+  // Get all occurrences with emergency type information
+  app.get('/occurrences', async (req, res) => {
+    try {
     const limit = req.query.limit ? parseInt(req.query.limit) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
     
@@ -612,3 +613,24 @@ app.get('/api', (req, res) => {
 
 // Export for Vercel
 module.exports = app; 
+
+// Start the server
+const server = app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`Test the /readOccurrences endpoint at: http://localhost:${PORT}/readOccurrences`);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down server...');
+  server.close(() => {
+    db.close((err) => {
+      if (err) {
+        console.error('Error closing database:', err.message);
+      } else {
+        console.log('Database connection closed.');
+      }
+      process.exit(0);
+    });
+  });
+}); 

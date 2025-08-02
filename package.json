@@ -2,12 +2,10 @@
   "name": "cmbsc-monitor",
   "version": "1.0.0",
   "description": "Node server with readOccurrences endpoint",
-  "main": "server.js",
+  "main": "server-neon.js",
   "scripts": {
-    "start": "node server.js",
-    "start:neon": "node server-neon.js",
-    "dev": "nodemon server.js",
-    "dev:neon": "nodemon server-neon.js"
+    "start": "node server-neon.js",
+    "dev": "nodemon server-neon.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
