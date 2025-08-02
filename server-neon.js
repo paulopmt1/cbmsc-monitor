@@ -26,37 +26,70 @@ app.use((req, res, next) => {
 // Neon database connection
 const sql = neon(process.env.DATABASE_URL);
 
+// Emergency types data
+const emergencyTypes = [
+  { id: 8, title: "Acidente de Trânsito" },
+  { id: 5, title: "Atendimento Pré-Hospitalar" },
+  { id: 2, title: "Auxílios/Apoios" },
+  { id: 10, title: "Averiguação/Corte de Árvore" },
+  { id: 11, title: "Averiguação/Manejo de Inseto" },
+  { id: 12, title: "Ação Preventiva Social" },
+  { id: 9, title: "Ações Preventivas" },
+  { id: 7, title: "Diversos" },
+  { id: 1, title: "Incêndio" },
+  { id: 3, title: "Produtos Perigosos" },
+  { id: 13, title: "Risco Potencial" },
+  { id: 4, title: "Salvamento/Busca/Resgate" }
+];
+
 // Initialize database table
 async function initializeDatabase() {
   try {
-    // Create table if it doesn't exist
+    // Create emergency types table
+    await sql`
+      CREATE TABLE IF NOT EXISTS tp_emergencia (
+        id INTEGER PRIMARY KEY,
+        title VARCHAR(255) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    
+    // Create occurrences table with foreign key
     await sql`
       CREATE TABLE IF NOT EXISTS occurrences (
         id_ocorrencia VARCHAR(255) PRIMARY KEY,
+        id_tp_emergencia INTEGER REFERENCES tp_emergencia(id),
         data JSONB NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
     
-    // Create index for better performance
+    // Create indexes for better performance
     await sql`
       CREATE INDEX IF NOT EXISTS idx_occurrences_created_at 
       ON occurrences(created_at DESC)
     `;
     
-    // Create index for emergency type searches
     await sql`
-      CREATE INDEX IF NOT EXISTS idx_occurrences_emergency_type 
-      ON occurrences USING GIN ((data->>'nm_tp_emergencia'))
+      CREATE INDEX IF NOT EXISTS idx_occurrences_tp_emergencia 
+      ON occurrences(id_tp_emergencia)
     `;
     
-    // Create index for city searches
     await sql`
       CREATE INDEX IF NOT EXISTS idx_occurrences_city 
       ON occurrences USING GIN ((data->>'nm_cidade'))
     `;
     
-    console.log('Neon database initialized successfully');
+    // Insert emergency types if they don't exist
+    for (const emergencyType of emergencyTypes) {
+      await sql`
+        INSERT INTO tp_emergencia (id, title) 
+        VALUES (${emergencyType.id}, ${emergencyType.title})
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+    
+    console.log('Neon database initialized successfully with emergency types');
   } catch (error) {
     console.error('Error initializing database:', error);
   }
@@ -154,9 +187,13 @@ app.get('/readOccurrences', async (req, res) => {
         `;
         
         if (existingResult.length === 0) {
-          // Save the object to database
+          // Extract emergency type ID from the occurrence data
+          const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
+          
+          // Save the object to database with foreign key
           await sql`
-            INSERT INTO occurrences (id_ocorrencia, data) VALUES (${occurrence.id_ocorrencia}, ${occurrence})
+            INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data) 
+            VALUES (${occurrence.id_ocorrencia}, ${emergencyTypeId}, ${occurrence})
           `;
           savedCount++;
         } else {
@@ -185,7 +222,7 @@ app.get('/readOccurrences', async (req, res) => {
   }
 });
 
-// Get all occurrences
+// Get all occurrences with emergency type information
 app.get('/occurrences', async (req, res) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit) : 50;
@@ -195,15 +232,19 @@ app.get('/occurrences', async (req, res) => {
     const countResult = await sql`SELECT COUNT(*) FROM occurrences`;
     const total = parseInt(countResult[0].count);
     
-    // Get occurrences with pagination
+    // Get occurrences with pagination and emergency type info
     const result = await sql`
-      SELECT * FROM occurrences 
-      ORDER BY created_at DESC 
+      SELECT o.*, t.title as emergency_type_title 
+      FROM occurrences o
+      LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+      ORDER BY o.created_at DESC 
       LIMIT ${limit} OFFSET ${offset}
     `;
     
     const occurrences = result.map(row => ({
       id_ocorrencia: row.id_ocorrencia,
+      id_tp_emergencia: row.id_tp_emergencia,
+      emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
       data: row.data
     }));
@@ -226,7 +267,10 @@ app.get('/occurrences/:id', async (req, res) => {
     const id = req.params.id;
     
     const result = await sql`
-      SELECT * FROM occurrences WHERE id_ocorrencia = ${id}
+      SELECT o.*, t.title as emergency_type_title 
+      FROM occurrences o
+      LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+      WHERE o.id_ocorrencia = ${id}
     `;
     
     if (result.length === 0) {
@@ -237,6 +281,8 @@ app.get('/occurrences/:id', async (req, res) => {
         message: 'ok', 
         data: {
           id_ocorrencia: occurrence.id_ocorrencia,
+          id_tp_emergencia: occurrence.id_tp_emergencia,
+          emergency_type_title: occurrence.emergency_type_title,
           created_at: occurrence.created_at,
           data: occurrence.data
         }
@@ -256,14 +302,18 @@ app.get('/occurrences/emergency/:type', async (req, res) => {
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
     
     const result = await sql`
-      SELECT * FROM occurrences 
-      WHERE data->>'nm_tp_emergencia' ILIKE ${`%${emergencyType}%`}
-      ORDER BY created_at DESC 
+      SELECT o.*, t.title as emergency_type_title 
+      FROM occurrences o
+      LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+      WHERE t.title ILIKE ${`%${emergencyType}%`}
+      ORDER BY o.created_at DESC 
       LIMIT ${limit} OFFSET ${offset}
     `;
     
     const occurrences = result.map(row => ({
       id_ocorrencia: row.id_ocorrencia,
+      id_tp_emergencia: row.id_tp_emergencia,
+      emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
       data: row.data
     }));
@@ -288,14 +338,18 @@ app.get('/occurrences/city/:city', async (req, res) => {
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
     
     const result = await sql`
-      SELECT * FROM occurrences 
-      WHERE data->>'nm_cidade' ILIKE ${`%${city}%`}
-      ORDER BY created_at DESC 
+      SELECT o.*, t.title as emergency_type_title 
+      FROM occurrences o
+      LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+      WHERE o.data->>'nm_cidade' ILIKE ${`%${city}%`}
+      ORDER BY o.created_at DESC 
       LIMIT ${limit} OFFSET ${offset}
     `;
     
     const occurrences = result.map(row => ({
       id_ocorrencia: row.id_ocorrencia,
+      id_tp_emergencia: row.id_tp_emergencia,
+      emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
       data: row.data
     }));
@@ -312,6 +366,23 @@ app.get('/occurrences/city/:city', async (req, res) => {
   }
 });
 
+// Get emergency types
+app.get('/emergency-types', async (req, res) => {
+  try {
+    const result = await sql`
+      SELECT * FROM tp_emergencia ORDER BY id
+    `;
+    
+    res.json({ 
+      message: 'ok', 
+      data: result
+    });
+  } catch (error) {
+    console.error('Error fetching emergency types:', error.message);
+    res.status(500).json({ message: 'error', error: error.message });
+  }
+});
+
 // Get statistics
 app.get('/occurrences/stats', async (req, res) => {
   try {
@@ -319,12 +390,12 @@ app.get('/occurrences/stats', async (req, res) => {
     const totalResult = await sql`SELECT COUNT(*) FROM occurrences`;
     const total = parseInt(totalResult[0].count);
     
-    // Get statistics by emergency type
+    // Get statistics by emergency type using the new table
     const emergencyTypeResult = await sql`
-      SELECT data->>'nm_tp_emergencia' as emergency_type, COUNT(*) as count
-      FROM occurrences 
-      WHERE data->>'nm_tp_emergencia' IS NOT NULL
-      GROUP BY data->>'nm_tp_emergencia'
+      SELECT t.title as emergency_type, COUNT(o.id_ocorrencia) as count
+      FROM tp_emergencia t
+      LEFT JOIN occurrences o ON t.id = o.id_tp_emergencia
+      GROUP BY t.id, t.title
       ORDER BY count DESC
     `;
     
@@ -403,9 +474,10 @@ app.get('/', (req, res) => {
       '/occurrences/:id',
       '/occurrences/emergency/:type',
       '/occurrences/city/:city',
+      '/emergency-types',
       '/occurrences/stats'
     ],
-    database: 'Neon PostgreSQL'
+    database: 'Neon PostgreSQL with normalized emergency types'
   });
 });
 

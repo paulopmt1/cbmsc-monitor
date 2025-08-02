@@ -16,11 +16,47 @@ const db = new sqlite3.Database('./occurrences.db', (err) => {
     console.error('Error opening database:', err.message);
   } else {
     console.log('Connected to SQLite database.');
-    // Create table if it doesn't exist
+    // Create emergency types table
+    db.run(`CREATE TABLE IF NOT EXISTS tp_emergencia (
+      id INTEGER PRIMARY KEY,
+      title TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating emergency types table:', err.message);
+      } else {
+        console.log('Emergency types table ready.');
+        
+        // Insert emergency types
+        const emergencyTypes = [
+          { id: 8, title: "Acidente de Trânsito" },
+          { id: 5, title: "Atendimento Pré-Hospitalar" },
+          { id: 2, title: "Auxílios/Apoios" },
+          { id: 10, title: "Averiguação/Corte de Árvore" },
+          { id: 11, title: "Averiguação/Manejo de Inseto" },
+          { id: 12, title: "Ação Preventiva Social" },
+          { id: 9, title: "Ações Preventivas" },
+          { id: 7, title: "Diversos" },
+          { id: 1, title: "Incêndio" },
+          { id: 3, title: "Produtos Perigosos" },
+          { id: 13, title: "Risco Potencial" },
+          { id: 4, title: "Salvamento/Busca/Resgate" }
+        ];
+        
+        emergencyTypes.forEach(emergencyType => {
+          db.run('INSERT OR IGNORE INTO tp_emergencia (id, title) VALUES (?, ?)', 
+            [emergencyType.id, emergencyType.title]);
+        });
+      }
+    });
+    
+    // Create occurrences table with foreign key
     db.run(`CREATE TABLE IF NOT EXISTS occurrences (
       id_ocorrencia TEXT PRIMARY KEY,
+      id_tp_emergencia INTEGER,
       data TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (id_tp_emergencia) REFERENCES tp_emergencia(id)
     )`, (err) => {
       if (err) {
         console.error('Error creating table:', err.message);
@@ -125,10 +161,13 @@ app.get('/readOccurrences', async (req, res) => {
         });
         
         if (!exists) {
-          // Save the object to database
+          // Extract emergency type ID from the occurrence data
+          const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
+          
+          // Save the object to database with foreign key
           await new Promise((resolve, reject) => {
-            db.run('INSERT INTO occurrences (id_ocorrencia, data) VALUES (?, ?)', 
-              [occurrence.id_ocorrencia, JSON.stringify(occurrence)], (err) => {
+            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data) VALUES (?, ?, ?)', 
+              [occurrence.id_ocorrencia, emergencyTypeId, JSON.stringify(occurrence)], (err) => {
               if (err) reject(err);
               else resolve();
             });
@@ -165,8 +204,12 @@ app.get('/occurrences', (req, res) => {
   const limit = req.query.limit ? parseInt(req.query.limit) : 50;
   const offset = req.query.offset ? parseInt(req.query.offset) : 0;
   
-  db.all('SELECT * FROM occurrences ORDER BY created_at DESC LIMIT ? OFFSET ?', 
-    [limit, offset], (err, rows) => {
+  db.all(`
+    SELECT o.*, t.title as emergency_type_title 
+    FROM occurrences o
+    LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+    ORDER BY o.created_at DESC LIMIT ? OFFSET ?
+  `, [limit, offset], (err, rows) => {
     if (err) {
       console.error('Error fetching occurrences:', err.message);
       res.status(500).json({ message: 'error', error: err.message });
@@ -174,6 +217,8 @@ app.get('/occurrences', (req, res) => {
       // Parse the JSON data for each occurrence
       const occurrences = rows.map(row => ({
         id_ocorrencia: row.id_ocorrencia,
+        id_tp_emergencia: row.id_tp_emergencia,
+        emergency_type_title: row.emergency_type_title,
         created_at: row.created_at,
         data: JSON.parse(row.data)
       }));
@@ -273,6 +318,21 @@ app.get('/occurrences/city/:city', (req, res) => {
   });
 });
 
+// Get emergency types
+app.get('/emergency-types', (req, res) => {
+  db.all('SELECT * FROM tp_emergencia ORDER BY id', [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching emergency types:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      res.json({ 
+        message: 'ok', 
+        data: rows
+      });
+    }
+  });
+});
+
 // Get statistics
 app.get('/occurrences/stats', (req, res) => {
   db.all('SELECT * FROM occurrences', [], (err, rows) => {
@@ -336,6 +396,7 @@ app.get('/', (req, res) => {
       '/occurrences/:id',
       '/occurrences/emergency/:type',
       '/occurrences/city/:city',
+      '/emergency-types',
       '/occurrences/stats'
     ] 
   });
