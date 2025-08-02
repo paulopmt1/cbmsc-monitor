@@ -58,12 +58,26 @@ The local version uses SQLite for data persistence. The database file (`occurren
 
 The Vercel version uses in-memory storage since SQLite doesn't work well in serverless environments. Data will be reset on each deployment.
 
-## Deployment to Vercel
+## Deployment to Vercel with Neon Database
 
 ### Prerequisites
 
 - Vercel account
 - Vercel CLI installed
+- Neon Database account (free tier available)
+
+### Setup Neon Database
+
+1. **Create a Neon account** at [https://neon.tech](https://neon.tech)
+
+2. **Create a new project** in the Neon console
+
+3. **Get your connection string** from the project dashboard
+
+4. **Copy the connection string** - it looks like:
+   ```
+   postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
+   ```
 
 ### Deployment Steps
 
@@ -90,27 +104,48 @@ vercel
    - Directory: `./` (current directory)
    - Override settings: `N`
 
-5. **For production deployment**:
+5. **Add environment variables** in Vercel dashboard:
+   - Go to your project settings
+   - Add `DATABASE_URL` with your Neon connection string
+
+6. **For production deployment**:
 ```bash
 vercel --prod
 ```
 
 ### Environment Variables
 
-No environment variables are required for basic functionality. The application will use default settings.
+Required environment variable:
+- `DATABASE_URL`: Your Neon Database connection string
 
-### Important Notes for Vercel Deployment
+### Local Development with Neon
 
-1. **Data Persistence**: The Vercel version uses in-memory storage, so data will be lost when the serverless function restarts.
+1. **Copy the environment template**:
+```bash
+cp env.example .env
+```
 
-2. **Cold Starts**: Serverless functions may have cold start delays on first request.
+2. **Add your Neon connection string** to `.env`:
+```bash
+DATABASE_URL=postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
+```
 
-3. **Function Limits**: Vercel has execution time limits (10 seconds for hobby plan, 60 seconds for pro plan).
+3. **Start the development server**:
+```bash
+npm run dev:neon
+```
 
-4. **Database Alternative**: For persistent data storage on Vercel, consider using:
-   - Vercel KV (Redis)
-   - Vercel Postgres
-   - External database services (MongoDB Atlas, PlanetScale, etc.)
+### Important Notes for Neon + Vercel Deployment
+
+1. **Persistent Data**: Neon Database provides persistent PostgreSQL storage that works perfectly with Vercel's serverless functions.
+
+2. **Serverless Optimized**: The `@neondatabase/serverless` driver is specifically designed for serverless environments.
+
+3. **Free Tier**: Neon offers a generous free tier with 3GB storage and 10GB transfer per month.
+
+4. **Automatic Scaling**: Neon automatically scales based on your usage.
+
+5. **Branching**: Neon supports database branching for development and testing.
 
 ## Usage Examples
 

@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "server-vercel.js",
+      "src": "server-neon.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/server-vercel.js"
+      "dest": "/server-neon.js"
     }
   ],
   "env": {
