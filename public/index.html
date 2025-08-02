@@ -228,6 +228,27 @@
             color: #7f8c8d;
         }
 
+        .description {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+
+        .description h4 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .description p {
+            color: #495057;
+            line-height: 1.5;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
         .loading {
             text-align: center;
             padding: 50px;
@@ -497,6 +518,12 @@
                                 <span class="detail-value">${createdDate}</span>
                             </div>
                         </div>
+
+                        ${occurrence.de_inicial ? `
+                            <div class="description">
+                                <p>${occurrence.de_inicial}</p>
+                            </div>
+                        ` : ''}
 
                         ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
                             <div class="coordinates" onclick="openGoogleMaps(${occurrence.lat_logradouro}, ${occurrence.long_logradouro})" style="cursor: pointer;">

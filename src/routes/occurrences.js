@@ -124,6 +124,7 @@ router.get('/', async (req, res) => {
       long_logradouro: row.long_logradouro,
       created_at: row.created_at,
       ts_ocorrencia: row.ts_ocorrencia,
+      de_inicial: row.data?.de_inicial || null,
       data: row.data
     }));
     
@@ -168,6 +169,7 @@ router.get('/:id', async (req, res) => {
           long_logradouro: occurrence.long_logradouro,
           created_at: occurrence.created_at,
           ts_ocorrencia: occurrence.ts_ocorrencia,
+          de_inicial: occurrence.data?.de_inicial || null,
           data: occurrence.data
         }
       });
@@ -205,6 +207,7 @@ router.get('/emergency/:type', async (req, res) => {
       long_logradouro: row.long_logradouro,
       created_at: row.created_at,
       ts_ocorrencia: row.ts_ocorrencia,
+      de_inicial: row.data?.de_inicial || null,
       data: row.data
     }));
     
@@ -247,6 +250,7 @@ router.get('/city/:city', async (req, res) => {
       long_logradouro: row.long_logradouro,
       created_at: row.created_at,
       ts_ocorrencia: row.ts_ocorrencia,
+      de_inicial: row.data?.de_inicial || null,
       data: row.data
     }));
     
