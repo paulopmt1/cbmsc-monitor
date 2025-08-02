@@ -50,14 +50,39 @@ const db = new sqlite3.Database('./occurrences.db', (err) => {
       }
     });
     
-    // Create occurrences table with foreign key
+    // Create cities table
+    db.run(`CREATE TABLE IF NOT EXISTS cities (
+      id_cidade INTEGER PRIMARY KEY,
+      nome_cidade TEXT NOT NULL UNIQUE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`, (err) => {
+      if (err) {
+        console.error('Error creating cities table:', err.message);
+      } else {
+        console.log('Cities table ready.');
+        
+        // Insert cities
+        const cities = [
+          { id_cidade: 8379, nome_cidade: "VIDEIRA" }
+        ];
+        
+        cities.forEach(city => {
+          db.run('INSERT OR IGNORE INTO cities (id_cidade, nome_cidade) VALUES (?, ?)', 
+            [city.id_cidade, city.nome_cidade]);
+        });
+      }
+    });
+    
+    // Create occurrences table with foreign keys
     db.run(`CREATE TABLE IF NOT EXISTS occurrences (
       id_ocorrencia TEXT PRIMARY KEY,
       id_tp_emergencia INTEGER,
+      id_cidade INTEGER,
       data TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       ts_ocorrencia DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (id_tp_emergencia) REFERENCES tp_emergencia(id)
+      FOREIGN KEY (id_tp_emergencia) REFERENCES tp_emergencia(id),
+      FOREIGN KEY (id_cidade) REFERENCES cities(id_cidade)
     )`, (err) => {
       if (err) {
         console.error('Error creating table:', err.message);
@@ -165,14 +190,17 @@ app.get('/readOccurrences', async (req, res) => {
           // Extract emergency type ID from the occurrence data
           const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
           
+          // Extract city ID from the occurrence data
+          const cityId = parseInt(occurrence.id_cidade) || null;
+          
           // Extract occurrence timestamp from the data
           const occurrenceTimestamp = occurrence.ts_ocorrencia ? 
             new Date(occurrence.ts_ocorrencia).toISOString() : new Date().toISOString();
           
-          // Save the object to database with foreign key and timestamp
+          // Save the object to database with foreign keys and timestamp
           await new Promise((resolve, reject) => {
-            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data, ts_ocorrencia) VALUES (?, ?, ?, ?)', 
-              [occurrence.id_ocorrencia, emergencyTypeId, JSON.stringify(occurrence), occurrenceTimestamp], (err) => {
+            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, id_cidade, data, ts_ocorrencia) VALUES (?, ?, ?, ?, ?)', 
+              [occurrence.id_ocorrencia, emergencyTypeId, cityId, JSON.stringify(occurrence), occurrenceTimestamp], (err) => {
               if (err) reject(err);
               else resolve();
             });
@@ -210,9 +238,10 @@ app.get('/occurrences', (req, res) => {
   const offset = req.query.offset ? parseInt(req.query.offset) : 0;
   
   db.all(`
-    SELECT o.*, t.title as emergency_type_title 
+    SELECT o.*, t.title as emergency_type_title, c.nome_cidade as city_name
     FROM occurrences o
     LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+    LEFT JOIN cities c ON o.id_cidade = c.id_cidade
     ORDER BY o.created_at DESC LIMIT ? OFFSET ?
   `, [limit, offset], (err, rows) => {
     if (err) {
@@ -223,7 +252,9 @@ app.get('/occurrences', (req, res) => {
       const occurrences = rows.map(row => ({
         id_ocorrencia: row.id_ocorrencia,
         id_tp_emergencia: row.id_tp_emergencia,
+        id_cidade: row.id_cidade,
         emergency_type_title: row.emergency_type_title,
+        city_name: row.city_name,
         created_at: row.created_at,
         ts_ocorrencia: row.ts_ocorrencia,
         data: JSON.parse(row.data)
@@ -339,6 +370,21 @@ app.get('/emergency-types', (req, res) => {
   });
 });
 
+// Get cities
+app.get('/cities', (req, res) => {
+  db.all('SELECT * FROM cities ORDER BY nome_cidade', [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching cities:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      res.json({ 
+        message: 'ok', 
+        data: rows
+      });
+    }
+  });
+});
+
 // Get statistics
 app.get('/occurrences/stats', (req, res) => {
   db.all('SELECT * FROM occurrences', [], (err, rows) => {
@@ -403,6 +449,7 @@ app.get('/', (req, res) => {
       '/occurrences/emergency/:type',
       '/occurrences/city/:city',
       '/emergency-types',
+      '/cities',
       '/occurrences/stats'
     ] 
   });
