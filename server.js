@@ -160,9 +160,185 @@ app.get('/readOccurrences', async (req, res) => {
   }
 });
 
+// Get all occurrences
+app.get('/occurrences', (req, res) => {
+  const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+  const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+  
+  db.all('SELECT * FROM occurrences ORDER BY created_at DESC LIMIT ? OFFSET ?', 
+    [limit, offset], (err, rows) => {
+    if (err) {
+      console.error('Error fetching occurrences:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      // Parse the JSON data for each occurrence
+      const occurrences = rows.map(row => ({
+        id_ocorrencia: row.id_ocorrencia,
+        created_at: row.created_at,
+        data: JSON.parse(row.data)
+      }));
+      res.json({ message: 'ok', data: occurrences, count: occurrences.length });
+    }
+  });
+});
+
+// Get occurrence by ID
+app.get('/occurrences/:id', (req, res) => {
+  const id = req.params.id;
+  
+  db.get('SELECT * FROM occurrences WHERE id_ocorrencia = ?', [id], (err, row) => {
+    if (err) {
+      console.error('Error fetching occurrence:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else if (!row) {
+      res.status(404).json({ message: 'error', error: 'Occurrence not found' });
+    } else {
+      res.json({ 
+        message: 'ok', 
+        data: {
+          id_ocorrencia: row.id_ocorrencia,
+          created_at: row.created_at,
+          data: JSON.parse(row.data)
+        }
+      });
+    }
+  });
+});
+
+// Search occurrences by emergency type
+app.get('/occurrences/emergency/:type', (req, res) => {
+  const emergencyType = req.params.type;
+  const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+  const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+  
+  db.all('SELECT * FROM occurrences ORDER BY created_at DESC LIMIT ? OFFSET ?', 
+    [limit, offset], (err, rows) => {
+    if (err) {
+      console.error('Error fetching occurrences:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      // Filter by emergency type
+      const filteredOccurrences = rows
+        .map(row => ({
+          id_ocorrencia: row.id_ocorrencia,
+          created_at: row.created_at,
+          data: JSON.parse(row.data)
+        }))
+        .filter(occurrence => 
+          occurrence.data.nm_tp_emergencia && 
+          occurrence.data.nm_tp_emergencia.toLowerCase().includes(emergencyType.toLowerCase())
+        );
+      
+      res.json({ 
+        message: 'ok', 
+        data: filteredOccurrences, 
+        count: filteredOccurrences.length,
+        searchTerm: emergencyType
+      });
+    }
+  });
+});
+
+// Search occurrences by city
+app.get('/occurrences/city/:city', (req, res) => {
+  const city = req.params.city;
+  const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+  const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+  
+  db.all('SELECT * FROM occurrences ORDER BY created_at DESC LIMIT ? OFFSET ?', 
+    [limit, offset], (err, rows) => {
+    if (err) {
+      console.error('Error fetching occurrences:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      // Filter by city
+      const filteredOccurrences = rows
+        .map(row => ({
+          id_ocorrencia: row.id_ocorrencia,
+          created_at: row.created_at,
+          data: JSON.parse(row.data)
+        }))
+        .filter(occurrence => 
+          occurrence.data.nm_cidade && 
+          occurrence.data.nm_cidade.toLowerCase().includes(city.toLowerCase())
+        );
+      
+      res.json({ 
+        message: 'ok', 
+        data: filteredOccurrences, 
+        count: filteredOccurrences.length,
+        searchTerm: city
+      });
+    }
+  });
+});
+
+// Get statistics
+app.get('/occurrences/stats', (req, res) => {
+  db.all('SELECT * FROM occurrences', [], (err, rows) => {
+    if (err) {
+      console.error('Error fetching statistics:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else {
+      const occurrences = rows.map(row => JSON.parse(row.data));
+      
+      // Calculate statistics
+      const stats = {
+        total: occurrences.length,
+        byEmergencyType: {},
+        byCity: {},
+        byDate: {}
+      };
+      
+      occurrences.forEach(occurrence => {
+        // Count by emergency type
+        const emergencyType = occurrence.nm_tp_emergencia || 'Unknown';
+        stats.byEmergencyType[emergencyType] = (stats.byEmergencyType[emergencyType] || 0) + 1;
+        
+        // Count by city
+        const city = occurrence.nm_cidade || 'Unknown';
+        stats.byCity[city] = (stats.byCity[city] || 0) + 1;
+        
+        // Count by date (YYYY-MM-DD)
+        const date = occurrence.ts_ocorrencia ? 
+          occurrence.ts_ocorrencia.split('T')[0] : 'Unknown';
+        stats.byDate[date] = (stats.byDate[date] || 0) + 1;
+      });
+      
+      res.json({ message: 'ok', data: stats });
+    }
+  });
+});
+
+// Delete occurrence by ID
+app.delete('/occurrences/:id', (req, res) => {
+  const id = req.params.id;
+  
+  db.run('DELETE FROM occurrences WHERE id_ocorrencia = ?', [id], function(err) {
+    if (err) {
+      console.error('Error deleting occurrence:', err.message);
+      res.status(500).json({ message: 'error', error: err.message });
+    } else if (this.changes === 0) {
+      res.status(404).json({ message: 'error', error: 'Occurrence not found' });
+    } else {
+      res.json({ message: 'ok', deleted: id, changes: this.changes });
+    }
+  });
+});
+
 // Root endpoint for testing
 app.get('/', (req, res) => {
-  res.json({ message: 'Server is running!', endpoints: ['/readOccurrences'] });
+  res.json({ 
+    message: 'Server is running!', 
+    endpoints: [
+      '/readOccurrences',
+      '/occurrences',
+      '/occurrences/:id',
+      '/occurrences/emergency/:type',
+      '/occurrences/city/:city',
+      '/occurrences/stats'
+    ] 
+  });
 });
 
 // Start the server
@@ -185,28 +361,3 @@ process.on('SIGINT', () => {
     });
   });
 }); 
-
-
-/**
- * {
-    "error": false,
-    "data": [
-        {
-            "id_ocorrencia": "130791655",
-            "id_cidade": "8379",
-            "id_tp_emergencia": "8",
-            "de_inicial": "acidente de trânsito  colisão moto x caminhão",
-            "ts_ocorrencia": "2025-07-30T18:07:57.837Z",
-            "nm_logradouro_prv": "Rodovia 453",
-            "nm_bairro_prv": "20000157",
-            "nr_edificacao": "6770",
-            "nm_cidade": "VIDEIRA",
-            "nm_tp_emergencia": "ACIDENTE DE TRÂNSITO",
-            "time": "18:07",
-            "lat_logradouro": -26.9987074,
-            "long_logradouro": -51.1166335,
-            "viaturas": "ASU-517, ABTR-120, "
-        }
-    ]
-}
- */
