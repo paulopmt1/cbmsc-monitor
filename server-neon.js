@@ -1,6 +1,8 @@
 const express = require('express');
 const axios = require('axios');
 const { neon } = require('@neondatabase/serverless');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -11,8 +13,13 @@ app.use(express.json());
 // Middleware to parse URL-encoded bodies
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files
-app.use(express.static('public'));
+// Serve static files - try multiple possible paths
+// Try to serve static files from public directory if it exists
+if (fs.existsSync('./public')) {
+  app.use(express.static('public'));
+} else if (fs.existsSync(path.join(__dirname, 'public'))) {
+  app.use(express.static(path.join(__dirname, 'public')));
+}
 
 // CORS middleware
 app.use((req, res, next) => {
@@ -550,7 +557,39 @@ app.delete('/occurrences/:id', async (req, res) => {
 
 // Root endpoint - serve the web interface
 app.get('/', (req, res) => {
-  res.sendFile('index.html', { root: './public' });
+  const path = require('path');
+  const fs = require('fs');
+  
+  // Try multiple possible paths for the HTML file
+  const possiblePaths = [
+    './public/index.html',
+    './index.html',
+    path.join(__dirname, 'public', 'index.html'),
+    path.join(__dirname, 'index.html')
+  ];
+  
+  for (const filePath of possiblePaths) {
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath);
+    }
+  }
+  
+  // If HTML file not found, serve a simple API info page
+  res.json({ 
+    message: 'CBM SC Monitor API', 
+    endpoints: [
+      '/readOccurrences',
+      '/occurrences',
+      '/occurrences/:id',
+      '/occurrences/emergency/:type',
+      '/occurrences/city/:city',
+      '/emergency-types',
+      '/cities',
+      '/occurrences/stats'
+    ],
+    database: 'Neon PostgreSQL with normalized emergency types',
+    note: 'Web interface not available in this environment'
+  });
 });
 
 // API info endpoint
