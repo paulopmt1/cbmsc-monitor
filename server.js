@@ -56,6 +56,7 @@ const db = new sqlite3.Database('./occurrences.db', (err) => {
       id_tp_emergencia INTEGER,
       data TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ts_ocorrencia DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (id_tp_emergencia) REFERENCES tp_emergencia(id)
     )`, (err) => {
       if (err) {
@@ -164,10 +165,14 @@ app.get('/readOccurrences', async (req, res) => {
           // Extract emergency type ID from the occurrence data
           const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
           
-          // Save the object to database with foreign key
+          // Extract occurrence timestamp from the data
+          const occurrenceTimestamp = occurrence.ts_ocorrencia ? 
+            new Date(occurrence.ts_ocorrencia).toISOString() : new Date().toISOString();
+          
+          // Save the object to database with foreign key and timestamp
           await new Promise((resolve, reject) => {
-            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data) VALUES (?, ?, ?)', 
-              [occurrence.id_ocorrencia, emergencyTypeId, JSON.stringify(occurrence)], (err) => {
+            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data, ts_ocorrencia) VALUES (?, ?, ?, ?)', 
+              [occurrence.id_ocorrencia, emergencyTypeId, JSON.stringify(occurrence), occurrenceTimestamp], (err) => {
               if (err) reject(err);
               else resolve();
             });
@@ -220,6 +225,7 @@ app.get('/occurrences', (req, res) => {
         id_tp_emergencia: row.id_tp_emergencia,
         emergency_type_title: row.emergency_type_title,
         created_at: row.created_at,
+        ts_ocorrencia: row.ts_ocorrencia,
         data: JSON.parse(row.data)
       }));
       res.json({ message: 'ok', data: occurrences, count: occurrences.length });

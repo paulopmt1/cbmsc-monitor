@@ -60,7 +60,8 @@ async function initializeDatabase() {
         id_ocorrencia VARCHAR(255) PRIMARY KEY,
         id_tp_emergencia INTEGER REFERENCES tp_emergencia(id),
         data JSONB NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ts_ocorrencia TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
     
@@ -190,10 +191,14 @@ app.get('/readOccurrences', async (req, res) => {
           // Extract emergency type ID from the occurrence data
           const emergencyTypeId = parseInt(occurrence.id_tp_emergencia) || null;
           
-          // Save the object to database with foreign key
+          // Extract occurrence timestamp from the data
+          const occurrenceTimestamp = occurrence.ts_ocorrencia ? 
+            new Date(occurrence.ts_ocorrencia) : new Date();
+          
+          // Save the object to database with foreign key and timestamp
           await sql`
-            INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data) 
-            VALUES (${occurrence.id_ocorrencia}, ${emergencyTypeId}, ${occurrence})
+            INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, data, ts_ocorrencia) 
+            VALUES (${occurrence.id_ocorrencia}, ${emergencyTypeId}, ${occurrence}, ${occurrenceTimestamp})
           `;
           savedCount++;
         } else {
@@ -246,6 +251,7 @@ app.get('/occurrences', async (req, res) => {
       id_tp_emergencia: row.id_tp_emergencia,
       emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
+      ts_ocorrencia: row.ts_ocorrencia,
       data: row.data
     }));
     
@@ -284,6 +290,7 @@ app.get('/occurrences/:id', async (req, res) => {
           id_tp_emergencia: occurrence.id_tp_emergencia,
           emergency_type_title: occurrence.emergency_type_title,
           created_at: occurrence.created_at,
+          ts_ocorrencia: occurrence.ts_ocorrencia,
           data: occurrence.data
         }
       });
@@ -315,6 +322,7 @@ app.get('/occurrences/emergency/:type', async (req, res) => {
       id_tp_emergencia: row.id_tp_emergencia,
       emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
+      ts_ocorrencia: row.ts_ocorrencia,
       data: row.data
     }));
     
@@ -351,6 +359,7 @@ app.get('/occurrences/city/:city', async (req, res) => {
       id_tp_emergencia: row.id_tp_emergencia,
       emergency_type_title: row.emergency_type_title,
       created_at: row.created_at,
+      ts_ocorrencia: row.ts_ocorrencia,
       data: row.data
     }));
     
