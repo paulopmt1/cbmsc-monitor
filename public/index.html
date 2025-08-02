@@ -204,6 +204,15 @@
             padding: 12px;
             border-radius: 6px;
             margin-top: 15px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .coordinates:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
         }
 
         .coordinates h4 {
@@ -490,8 +499,8 @@
                         </div>
 
                         ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
-                            <div class="coordinates">
-                                <h4>📍 Coordenadas GPS</h4>
+                            <div class="coordinates" onclick="openGoogleMaps(${occurrence.lat_logradouro}, ${occurrence.long_logradouro})" style="cursor: pointer;">
+                                <h4>📍 Coordenadas GPS (Clique para abrir no Google Maps)</h4>
                                 <div class="coordinate-item">
                                     <span>Latitude:</span>
                                     <span>${occurrence.lat_logradouro}</span>
@@ -535,6 +544,12 @@
                     <p>${message}</p>
                 </div>
             `;
+        }
+
+        // Open Google Maps with coordinates
+        function openGoogleMaps(lat, lng) {
+            const url = `https://www.google.com/maps?q=${lat},${lng}`;
+            window.open(url, '_blank');
         }
 
         // Initialize when page loads
