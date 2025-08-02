@@ -1,195 +1,247 @@
 # CBM SC Monitor
 
-A Node.js API for monitoring emergency occurrences from the Santa Catarina Fire Department (CBM-SC).
+A Node.js API for monitoring emergency occurrences from the Santa Catarina Fire Department (CBM-SC). This application fetches, stores, and provides analytics for emergency incidents across Santa Catarina.
 
-## Features
+## 🚀 Features
 
-- Fetch emergency occurrences from CBM-SC API
-- Store and query occurrence data
-- Search by emergency type, city, and other criteria
-- Get statistics and analytics
-- RESTful API endpoints
+- **Real-time Data Fetching**: Fetch emergency occurrences from CBM-SC API
+- **Persistent Storage**: Store and query occurrence data with PostgreSQL (Neon)
+- **Advanced Search**: Search by emergency type, city, and other criteria
+- **Analytics**: Get comprehensive statistics and analytics
+- **RESTful API**: Clean, well-documented API endpoints
+- **Modular Architecture**: Organized, maintainable codebase
 
-## Local Development
+## 📋 Quick Start
 
 ### Prerequisites
-
 - Node.js (v14 or higher)
 - npm or yarn
+- Neon Database account (for production)
 
-### Installation
+### Installation & Setup
 
-1. Clone the repository:
+1. **Clone and install**:
 ```bash
 git clone <your-repo-url>
-cd cmbsc-monitor
-```
-
-2. Install dependencies:
-```bash
+cd cbmsc-monitor
 npm install
 ```
 
-3. Start the development server:
+2. **Environment setup**:
 ```bash
-npm start
+cp env.example .env
+# Add your Neon DATABASE_URL to .env
+```
+
+3. **Start development server**:
+```bash
+# Run organized version (recommended)
+node src/server.js
+
+# Or run original version
+node server-neon.js
 ```
 
 The server will run on `http://localhost:3000`
 
-### Local Database
+## 🏗️ Project Architecture
 
-The local version uses SQLite for data persistence. The database file (`occurrences.db`) will be created automatically.
+### Organized Code Structure (Recommended)
 
-## API Endpoints
+The codebase has been reorganized into a modular structure for better maintainability:
 
-### Local Development (with SQLite)
+```
+src/
+├── config/
+│   └── database.js          # Database connection and initialization
+├── middleware/
+│   ├── cors.js             # CORS middleware
+│   └── static.js           # Static file serving middleware
+├── models/
+│   └── data.js             # Data models and constants
+├── routes/
+│   ├── index.js            # Main routes index
+│   ├── occurrences.js      # Occurrence-related routes
+│   └── reference.js        # Reference data routes
+├── utils/
+│   └── initData.js         # Database initialization utilities
+├── app.js                  # Main Express application setup
+└── server.js               # Server entry point
+```
 
-- `GET /` - Server status and available endpoints
-- `GET /readOccurrences` - Fetch and store occurrences from CBM-SC API
-- `GET /occurrences` - Get all occurrences (with pagination)
-- `GET /occurrences/:id` - Get specific occurrence by ID
-- `GET /occurrences/emergency/:type` - Search by emergency type
-- `GET /occurrences/city/:city` - Search by city
-- `GET /occurrences/stats` - Get statistics
-- `DELETE /occurrences/:id` - Delete occurrence by ID
+### Benefits of This Organization
 
-### Vercel Deployment (In-Memory Storage)
+1. **Separation of Concerns**: Each file has a specific responsibility
+2. **Maintainability**: Easier to find and modify specific functionality
+3. **Scalability**: Easy to add new routes, middleware, or utilities
+4. **Testability**: Individual modules can be tested in isolation
+5. **Readability**: Code is organized logically and easy to navigate
 
-The Vercel version uses in-memory storage since SQLite doesn't work well in serverless environments. Data will be reset on each deployment.
+## 🔌 API Endpoints
 
-## Deployment to Vercel with Neon Database
+### Core Endpoints
 
-### Prerequisites
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Server status and available endpoints |
+| `GET` | `/api` | API information |
+| `GET` | `/readOccurrences` | Fetch and store occurrences from CBM-SC API |
 
-- Vercel account
-- Vercel CLI installed
-- Neon Database account (free tier available)
+### Occurrences Management
 
-### Setup Neon Database
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/occurrences` | Get all occurrences (with pagination) |
+| `GET` | `/occurrences/:id` | Get specific occurrence by ID |
+| `GET` | `/occurrences/emergency/:type` | Search by emergency type |
+| `GET` | `/occurrences/city/:city` | Search by city |
+| `GET` | `/occurrences/stats` | Get comprehensive statistics |
+| `DELETE` | `/occurrences/:id` | Delete occurrence by ID |
+
+### Reference Data
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/emergency-types` | Get all emergency types |
+| `GET` | `/cities` | Get all cities |
+
+### Query Parameters
+
+- `limit`: Number of results (default: 50)
+- `offset`: Pagination offset (default: 0)
+
+## 🗄️ Database Setup
+
+### Neon Database (Recommended)
 
 1. **Create a Neon account** at [https://neon.tech](https://neon.tech)
-
 2. **Create a new project** in the Neon console
-
 3. **Get your connection string** from the project dashboard
-
-4. **Copy the connection string** - it looks like:
+4. **Add to environment variables**:
    ```
-   postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
+   DATABASE_URL=postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
    ```
 
-### Deployment Steps
+### Database Schema
 
-1. **Install Vercel CLI** (if not already installed):
+The application automatically creates these tables:
+- `tp_emergencia`: Emergency types
+- `cities`: City information
+- `occurrences`: Main occurrence data with foreign keys
+
+## 🚀 Deployment
+
+### Vercel Deployment
+
+1. **Install Vercel CLI**:
 ```bash
 npm i -g vercel
 ```
 
-2. **Login to Vercel**:
+2. **Deploy**:
 ```bash
 vercel login
-```
-
-3. **Deploy the application**:
-```bash
 vercel
-```
-
-4. **Follow the prompts**:
-   - Set up and deploy: `Y`
-   - Which scope: Select your account
-   - Link to existing project: `N`
-   - Project name: `cmbsc-monitor` (or your preferred name)
-   - Directory: `./` (current directory)
-   - Override settings: `N`
-
-5. **Add environment variables** in Vercel dashboard:
-   - Go to your project settings
-   - Add `DATABASE_URL` with your Neon connection string
-
-6. **For production deployment**:
-```bash
 vercel --prod
 ```
 
+3. **Add environment variables** in Vercel dashboard:
+   - `DATABASE_URL`: Your Neon connection string
+
 ### Environment Variables
 
-Required environment variable:
-- `DATABASE_URL`: Your Neon Database connection string
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | Neon Database connection string | Yes |
+| `PORT` | Server port (default: 3000) | No |
 
-### Local Development with Neon
-
-1. **Copy the environment template**:
-```bash
-cp env.example .env
-```
-
-2. **Add your Neon connection string** to `.env`:
-```bash
-DATABASE_URL=postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
-```
-
-3. **Start the development server**:
-```bash
-npm run dev:neon
-```
-
-### Important Notes for Neon + Vercel Deployment
-
-1. **Persistent Data**: Neon Database provides persistent PostgreSQL storage that works perfectly with Vercel's serverless functions.
-
-2. **Serverless Optimized**: The `@neondatabase/serverless` driver is specifically designed for serverless environments.
-
-3. **Free Tier**: Neon offers a generous free tier with 3GB storage and 10GB transfer per month.
-
-4. **Automatic Scaling**: Neon automatically scales based on your usage.
-
-5. **Branching**: Neon supports database branching for development and testing.
-
-## Usage Examples
+## 📊 Usage Examples
 
 ### Fetch New Occurrences
 ```bash
-curl https://your-vercel-app.vercel.app/readOccurrences
+curl https://your-app.vercel.app/readOccurrences
 ```
 
-### Get All Occurrences
+### Get All Occurrences with Pagination
 ```bash
-curl https://your-vercel-app.vercel.app/occurrences
+curl "https://your-app.vercel.app/occurrences?limit=10&offset=0"
 ```
 
 ### Search by Emergency Type
 ```bash
-curl https://your-vercel-app.vercel.app/occurrences/emergency/incendio
+curl https://your-app.vercel.app/occurrences/emergency/incendio
 ```
 
 ### Get Statistics
 ```bash
-curl https://your-vercel-app.vercel.app/occurrences/stats
+curl https://your-app.vercel.app/occurrences/stats
 ```
 
-## Project Structure
-
-```
-cmbsc-monitor/
-├── server.js              # Local development server (with SQLite)
-├── server-vercel.js       # Vercel deployment server (in-memory)
-├── vercel.json           # Vercel configuration
-├── package.json          # Dependencies and scripts
-├── occurrences.db        # SQLite database (local only)
-├── .gitignore           # Git ignore rules
-└── README.md            # This file
+### Get Emergency Types
+```bash
+curl https://your-app.vercel.app/emergency-types
 ```
 
-## Technologies Used
+## 🛠️ Development
+
+### Adding New Features
+
+1. **New Routes**: Add to appropriate route file in `src/routes/`
+2. **New Middleware**: Add to `src/middleware/`
+3. **New Models**: Add to `src/models/`
+4. **New Utilities**: Add to `src/utils/`
+5. **Database Changes**: Modify `src/config/database.js`
+
+### Available Scripts
+
+```bash
+# Start development server (organized version)
+node src/server.js
+
+# Start original server
+node server-neon.js
+
+# Start with nodemon (if installed)
+nodemon src/server.js
+```
+
+## 🏛️ Emergency Types
+
+The system supports these emergency types:
+- Acidente de Trânsito (Traffic Accident)
+- Atendimento Pré-Hospitalar (Pre-Hospital Care)
+- Auxílios/Apoios (Aid/Support)
+- Averiguação/Corte de Árvore (Tree Investigation/Cutting)
+- Averiguação/Manejo de Inseto (Insect Investigation/Management)
+- Ação Preventiva Social (Social Preventive Action)
+- Ações Preventivas (Preventive Actions)
+- Diversos (Various)
+- Incêndio (Fire)
+- Produtos Perigosos (Dangerous Products)
+- Risco Potencial (Potential Risk)
+- Salvamento/Busca/Resgate (Rescue/Search/Rescue)
+
+## 🛡️ Important Notes
+
+- **Persistent Data**: Neon Database provides persistent PostgreSQL storage
+- **Serverless Optimized**: Uses `@neondatabase/serverless` driver for Vercel
+- **Free Tier**: Neon offers 3GB storage and 10GB transfer per month
+- **Automatic Scaling**: Neon scales based on usage
+- **Data Integrity**: Foreign key relationships ensure data consistency
+
+## 🛠️ Technologies Used
 
 - **Node.js** - Runtime environment
 - **Express.js** - Web framework
-- **SQLite3** - Local database (development)
+- **PostgreSQL** - Database (via Neon)
 - **Axios** - HTTP client for API calls
 - **Vercel** - Deployment platform
+- **@neondatabase/serverless** - Serverless-optimized database driver
 
-## License
+## 📝 License
 
 ISC
+
+---
+
+**Note**: This project has been reorganized for better maintainability. The original `server-neon.js` file is preserved for reference, but the new modular structure in `src/` is recommended for development and production use.
