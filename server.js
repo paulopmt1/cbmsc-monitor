@@ -78,6 +78,8 @@ const db = new sqlite3.Database('./occurrences.db', (err) => {
       id_ocorrencia TEXT PRIMARY KEY,
       id_tp_emergencia INTEGER,
       id_cidade INTEGER,
+      lat_logradouro REAL,
+      long_logradouro REAL,
       data TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       ts_ocorrencia DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -193,14 +195,18 @@ app.get('/readOccurrences', async (req, res) => {
           // Extract city ID from the occurrence data
           const cityId = parseInt(occurrence.id_cidade) || null;
           
+          // Extract GPS coordinates from the data
+          const latitude = occurrence.lat_logradouro ? parseFloat(occurrence.lat_logradouro) : null;
+          const longitude = occurrence.long_logradouro ? parseFloat(occurrence.long_logradouro) : null;
+          
           // Extract occurrence timestamp from the data
           const occurrenceTimestamp = occurrence.ts_ocorrencia ? 
             new Date(occurrence.ts_ocorrencia).toISOString() : new Date().toISOString();
           
-          // Save the object to database with foreign keys and timestamp
+          // Save the object to database with foreign keys, GPS coordinates, and timestamp
           await new Promise((resolve, reject) => {
-            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, id_cidade, data, ts_ocorrencia) VALUES (?, ?, ?, ?, ?)', 
-              [occurrence.id_ocorrencia, emergencyTypeId, cityId, JSON.stringify(occurrence), occurrenceTimestamp], (err) => {
+            db.run('INSERT INTO occurrences (id_ocorrencia, id_tp_emergencia, id_cidade, lat_logradouro, long_logradouro, data, ts_ocorrencia) VALUES (?, ?, ?, ?, ?, ?, ?)', 
+              [occurrence.id_ocorrencia, emergencyTypeId, cityId, latitude, longitude, JSON.stringify(occurrence), occurrenceTimestamp], (err) => {
               if (err) reject(err);
               else resolve();
             });
@@ -255,6 +261,8 @@ app.get('/occurrences', (req, res) => {
         id_cidade: row.id_cidade,
         emergency_type_title: row.emergency_type_title,
         city_name: row.city_name,
+        lat_logradouro: row.lat_logradouro,
+        long_logradouro: row.long_logradouro,
         created_at: row.created_at,
         ts_ocorrencia: row.ts_ocorrencia,
         data: JSON.parse(row.data)
