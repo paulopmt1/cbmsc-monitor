@@ -44,7 +44,8 @@ const emergencyTypes = [
 
 // Cities data (starting with VIDEIRA from the sample data)
 const cities = [
-  { id_cidade: 8379, nome_cidade: "VIDEIRA" }
+  { id_cidade: 8379, nome_cidade: "VIDEIRA" },
+  { id_cidade: 8177, nome_cidade: "JOAÇABA" }
 ];
 
 // Initialize database table
@@ -132,7 +133,8 @@ app.get('/readOccurrences', async (req, res) => {
     const requestData = {
       "user": {
         "cidade": [
-          8379
+          8379,
+          8177
         ]
       },
       "emergencies": [
