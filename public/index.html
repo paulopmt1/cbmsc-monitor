@@ -388,7 +388,7 @@
 
         // Load occurrences
         async function loadOccurrences() {
-            const response = await fetch(`${API_BASE}/occurrences?limit=100`);
+            const response = await fetch(`${API_BASE}/occurrences?limit=1000`);
             const data = await response.json();
             
             if (data.message === 'ok') {
