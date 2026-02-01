@@ -94,23 +94,28 @@ router.get('/readNewOccurrences', async (req, res) => {
   }
 });
 
-// Get all occurrences with emergency type information
+// Get all occurrences with emergency type information (last 30 days only)
 router.get('/', async (req, res) => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-    
-    // Get total count
-    const countResult = await sql`SELECT COUNT(*) FROM occurrences`;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Get total count (last 30 days)
+    const countResult = await sql`
+      SELECT COUNT(*) FROM occurrences WHERE ts_ocorrencia >= ${thirtyDaysAgo}
+    `;
     const total = parseInt(countResult[0].count);
-    
-    // Get occurrences with pagination and emergency type info
+
+    // Get occurrences with pagination and emergency type info (last 30 days)
     const result = await sql`
       SELECT o.*, t.title as emergency_type_title, c.nome_cidade as city_name
       FROM occurrences o
       LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
       LEFT JOIN cities c ON o.id_cidade = c.id_cidade
-      ORDER BY o.created_at DESC 
+      WHERE o.ts_ocorrencia >= ${thirtyDaysAgo}
+      ORDER BY o.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
     
@@ -180,20 +185,22 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Search occurrences by emergency type
+// Search occurrences by emergency type (last 30 days only)
 router.get('/emergency/:type', async (req, res) => {
   try {
     const emergencyType = req.params.type;
     const limit = req.query.limit ? parseInt(req.query.limit) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const result = await sql`
       SELECT o.*, t.title as emergency_type_title, c.nome_cidade as city_name
       FROM occurrences o
       LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
       LEFT JOIN cities c ON o.id_cidade = c.id_cidade
-      WHERE t.title ILIKE ${`%${emergencyType}%`}
-      ORDER BY o.created_at DESC 
+      WHERE t.title ILIKE ${`%${emergencyType}%`} AND o.ts_ocorrencia >= ${thirtyDaysAgo}
+      ORDER BY o.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
     
@@ -223,20 +230,22 @@ router.get('/emergency/:type', async (req, res) => {
   }
 });
 
-// Search occurrences by city
+// Search occurrences by city (last 30 days only)
 router.get('/city/:city', async (req, res) => {
   try {
     const city = req.params.city;
     const limit = req.query.limit ? parseInt(req.query.limit) : 50;
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
-    
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const result = await sql`
       SELECT o.*, t.title as emergency_type_title, c.nome_cidade as city_name
       FROM occurrences o
       LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
       LEFT JOIN cities c ON o.id_cidade = c.id_cidade
-      WHERE c.nome_cidade ILIKE ${`%${city}%`}
-      ORDER BY o.created_at DESC 
+      WHERE c.nome_cidade ILIKE ${`%${city}%`} AND o.ts_ocorrencia >= ${thirtyDaysAgo}
+      ORDER BY o.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
     
@@ -266,37 +275,42 @@ router.get('/city/:city', async (req, res) => {
   }
 });
 
-// Get statistics
+// Get statistics (last 30 days only)
 router.get('/stats', async (req, res) => {
   try {
-    // Get total count
-    const totalResult = await sql`SELECT COUNT(*) FROM occurrences`;
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Get total count (last 30 days)
+    const totalResult = await sql`
+      SELECT COUNT(*) FROM occurrences WHERE ts_ocorrencia >= ${thirtyDaysAgo}
+    `;
     const total = parseInt(totalResult[0].count);
-    
-    // Get statistics by emergency type using the new table
+
+    // Get statistics by emergency type (last 30 days)
     const emergencyTypeResult = await sql`
       SELECT t.title as emergency_type, COUNT(o.id_ocorrencia) as count
       FROM tp_emergencia t
-      LEFT JOIN occurrences o ON t.id = o.id_tp_emergencia
+      LEFT JOIN occurrences o ON t.id = o.id_tp_emergencia AND o.ts_ocorrencia >= ${thirtyDaysAgo}
       GROUP BY t.id, t.title
       ORDER BY count DESC
     `;
-    
-    // Get statistics by city
+
+    // Get statistics by city (last 30 days)
     const cityResult = await sql`
       SELECT c.nome_cidade as city, COUNT(o.id_ocorrencia) as count
       FROM cities c
-      LEFT JOIN occurrences o ON c.id_cidade = o.id_cidade
+      LEFT JOIN occurrences o ON c.id_cidade = o.id_cidade AND o.ts_ocorrencia >= ${thirtyDaysAgo}
       GROUP BY c.id_cidade, c.nome_cidade
       ORDER BY count DESC
     `;
-    
-    // Get statistics by date
+
+    // Get statistics by date (last 30 days)
     const dateResult = await sql`
-      SELECT DATE(data->>'ts_ocorrencia') as date, COUNT(*) as count
-      FROM occurrences 
-      WHERE data->>'ts_ocorrencia' IS NOT NULL
-      GROUP BY DATE(data->>'ts_ocorrencia')
+      SELECT DATE(ts_ocorrencia) as date, COUNT(*) as count
+      FROM occurrences
+      WHERE ts_ocorrencia >= ${thirtyDaysAgo}
+      GROUP BY DATE(ts_ocorrencia)
       ORDER BY date DESC
     `;
     
