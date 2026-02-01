@@ -471,7 +471,52 @@
             updateStats(filtered);
         }
 
-        // Render occurrences
+        // Build HTML for a single occurrence card (used for chunked rendering)
+        function buildOccurrenceCardHTML(occurrence) {
+            const iconInfo = emergencyIcons[occurrence.emergency_type_title] ||
+                            { icon: '❓', color: '#95a5a6' };
+            const occurrenceDate = new Date(occurrence.ts_ocorrencia).toLocaleString('pt-BR');
+            const createdDate = new Date(occurrence.created_at).toLocaleString('pt-BR');
+            return `
+                <div class="occurrence-card">
+                    <div class="occurrence-header">
+                        <div class="emergency-icon" style="background-color: ${iconInfo.color}">
+                            ${iconInfo.icon}
+                        </div>
+                        <div class="emergency-info">
+                            <h3>${occurrence.emergency_type_title}</h3>
+                            <div class="city">📍 ${occurrence.city_name}</div>
+                        </div>
+                    </div>
+                    <div class="occurrence-details">
+                        <div class="detail-row">
+                            <span class="detail-label">ID:</span>
+                            <span class="detail-value">${occurrence.id_ocorrencia}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Data da Ocorrência:</span>
+                            <span class="detail-value">${occurrenceDate}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Registrado em:</span>
+                            <span class="detail-value">${createdDate}</span>
+                        </div>
+                    </div>
+                    ${occurrence.de_inicial ? `<div class="description"><p>${occurrence.de_inicial}</p></div>` : ''}
+                    ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
+                        <div class="coordinates" onclick="openGoogleMaps(${occurrence.lat_logradouro}, ${occurrence.long_logradouro})" style="cursor: pointer;">
+                            <h4>📍 Coordenadas GPS (Clique para abrir no Google Maps)</h4>
+                            <div class="coordinate-item"><span>Latitude:</span><span>${occurrence.lat_logradouro}</span></div>
+                            <div class="coordinate-item"><span>Longitude:</span><span>${occurrence.long_logradouro}</span></div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Render occurrences in chunks to avoid blocking the main thread (fixes freeze)
+        const RENDER_BATCH_SIZE = 50;
+
         function renderOccurrences(occurrences) {
             const content = document.getElementById('content');
 
@@ -485,68 +530,25 @@
                 return;
             }
 
-            const occurrencesHTML = occurrences.map(occurrence => {
-                const iconInfo = emergencyIcons[occurrence.emergency_type_title] || 
-                                { icon: '❓', color: '#95a5a6' };
+            content.innerHTML = '<div class="occurrences-grid" id="occurrences-grid"></div>';
+            const grid = document.getElementById('occurrences-grid');
+            let index = 0;
 
-                const occurrenceDate = new Date(occurrence.ts_ocorrencia).toLocaleString('pt-BR');
-                const createdDate = new Date(occurrence.created_at).toLocaleString('pt-BR');
+            function renderBatch() {
+                const end = Math.min(index + RENDER_BATCH_SIZE, occurrences.length);
+                const fragment = document.createDocumentFragment();
+                const temp = document.createElement('div');
+                for (; index < end; index++) {
+                    temp.innerHTML = buildOccurrenceCardHTML(occurrences[index]);
+                    fragment.appendChild(temp.firstElementChild);
+                }
+                grid.appendChild(fragment);
+                if (index < occurrences.length) {
+                    requestAnimationFrame(renderBatch);
+                }
+            }
 
-                return `
-                    <div class="occurrence-card">
-                        <div class="occurrence-header">
-                            <div class="emergency-icon" style="background-color: ${iconInfo.color}">
-                                ${iconInfo.icon}
-                            </div>
-                            <div class="emergency-info">
-                                <h3>${occurrence.emergency_type_title}</h3>
-                                <div class="city">📍 ${occurrence.city_name}</div>
-                            </div>
-                        </div>
-                        
-                        <div class="occurrence-details">
-                            <div class="detail-row">
-                                <span class="detail-label">ID:</span>
-                                <span class="detail-value">${occurrence.id_ocorrencia}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Data da Ocorrência:</span>
-                                <span class="detail-value">${occurrenceDate}</span>
-                            </div>
-                            <div class="detail-row">
-                                <span class="detail-label">Registrado em:</span>
-                                <span class="detail-value">${createdDate}</span>
-                            </div>
-                        </div>
-
-                        ${occurrence.de_inicial ? `
-                            <div class="description">
-                                <p>${occurrence.de_inicial}</p>
-                            </div>
-                        ` : ''}
-
-                        ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
-                            <div class="coordinates" onclick="openGoogleMaps(${occurrence.lat_logradouro}, ${occurrence.long_logradouro})" style="cursor: pointer;">
-                                <h4>📍 Coordenadas GPS (Clique para abrir no Google Maps)</h4>
-                                <div class="coordinate-item">
-                                    <span>Latitude:</span>
-                                    <span>${occurrence.lat_logradouro}</span>
-                                </div>
-                                <div class="coordinate-item">
-                                    <span>Longitude:</span>
-                                    <span>${occurrence.long_logradouro}</span>
-                                </div>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('');
-
-            content.innerHTML = `
-                <div class="occurrences-grid">
-                    ${occurrencesHTML}
-                </div>
-            `;
+            requestAnimationFrame(renderBatch);
         }
 
         // Update statistics

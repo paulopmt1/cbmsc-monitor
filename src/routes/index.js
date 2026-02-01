@@ -7,10 +7,12 @@ const router = express.Router();
 // Import route modules
 const occurrencesRoutes = require('./occurrences');
 const referenceRoutes = require('./reference');
+const exportRoutes = require('./export');
 
 // Mount route modules
 router.use('/occurrences', occurrencesRoutes);
 router.use('/', referenceRoutes);
+router.use('/export-db', exportRoutes);
 
 // Root endpoint - serve the web interface
 router.get('/', (req, res) => {
@@ -39,7 +41,8 @@ router.get('/', (req, res) => {
       '/occurrences/city/:city',
       '/emergency-types',
       '/cities',
-      '/occurrences/stats'
+      '/occurrences/stats',
+      '/export-db'
     ],
     database: 'Neon PostgreSQL with normalized emergency types',
     note: 'Web interface not available in this environment'
@@ -58,7 +61,8 @@ router.get('/api', (req, res) => {
       '/occurrences/city/:city',
       '/emergency-types',
       '/cities',
-      '/occurrences/stats'
+      '/occurrences/stats',
+      '/export-db'
     ],
     database: 'Neon PostgreSQL with normalized emergency types'
   });
