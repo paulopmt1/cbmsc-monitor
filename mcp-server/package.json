@@ -1,0 +1,16 @@
+{
+  "name": "cbmsc-monitor-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for querying CBM-SC emergency occurrence data",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@neondatabase/serverless": "^0.9.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "zod": "^4.3.6"
+  }
+}

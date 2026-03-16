@@ -182,6 +182,69 @@ curl https://your-app.vercel.app/occurrences/stats
 curl https://your-app.vercel.app/emergency-types
 ```
 
+## 🤖 MCP Server (AI Integration)
+
+This project includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Cursor query occurrence data directly.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `count_occurrences` | Count occurrences in a date range, with optional emergency type and city filters. Returns total + breakdown by type. |
+| `list_occurrence_types` | List all emergency types with occurrence counts, optionally scoped to a period. |
+| `get_occurrences` | Fetch actual occurrence records with type, city, timestamp, and coordinates. |
+| `best_time_analysis` | Analyze distribution by day-of-week and hour-of-day to find the best time to witness occurrences. |
+| `list_cities` | List all monitored cities with their total occurrence counts. |
+| `fetch_new_occurrences` | Trigger a fresh pull of occurrences from the CBM-SC public API. |
+
+### Setup in Cursor
+
+1. **Install dependencies** (if not already done):
+```bash
+cd mcp-server
+npm install
+```
+
+2. **Configure Cursor** by creating `.cursor/mcp.json` in the project root:
+```json
+{
+  "mcpServers": {
+    "cbmsc-monitor": {
+      "command": "node",
+      "args": ["<absolute-path-to>/cbmsc-monitor/mcp-server/index.js"]
+    }
+  }
+}
+```
+
+The server reads `DATABASE_URL` from the project's `.env` file automatically -- no need to pass it in the config.
+
+3. **Restart Cursor** (or reload the window) so it picks up the new MCP server.
+
+### Example Questions You Can Ask
+
+- "How many occurrences happened last month?"
+- "What are the most common emergency types in Videira?"
+- "What's the best day and time to go if I want to see more occurrences?"
+- "Show me all fire incidents in Joaçaba this year"
+- "Fetch new occurrences from the API"
+
+### MCP Server Structure
+
+```
+mcp-server/
+├── index.js           # Entry point (stdio transport, Zod schemas)
+├── db.js              # Shared Neon PostgreSQL connection
+├── package.json
+└── tools/
+    ├── analysis.js    # best_time_analysis
+    ├── cities.js      # list_cities
+    ├── count.js       # count_occurrences
+    ├── fetch.js       # fetch_new_occurrences
+    ├── occurrences.js # get_occurrences
+    └── types.js       # list_occurrence_types
+```
+
 ## 🛠️ Development
 
 ### Adding New Features
@@ -237,6 +300,7 @@ The system supports these emergency types:
 - **Axios** - HTTP client for API calls
 - **Vercel** - Deployment platform
 - **@neondatabase/serverless** - Serverless-optimized database driver
+- **@modelcontextprotocol/sdk** - MCP server for AI assistant integration
 
 ## 📝 License
 

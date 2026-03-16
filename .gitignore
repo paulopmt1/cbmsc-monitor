@@ -137,6 +137,7 @@ jspm_packages/
 # IDE files
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
