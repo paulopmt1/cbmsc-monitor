@@ -199,13 +199,32 @@ This project includes an [MCP (Model Context Protocol)](https://modelcontextprot
 
 ### Setup in Cursor
 
-1. **Install dependencies** (if not already done):
+There are two ways to connect: **remote** (recommended, no local setup) or **local**.
+
+#### Option A: Remote (via Vercel)
+
+The MCP server is deployed alongside the web app at `https://cbmsc-monitor.vercel.app/mcp`. No local installation needed.
+
+Create `.cursor/mcp.json` in any Cursor workspace:
+```json
+{
+  "mcpServers": {
+    "cbmsc-monitor": {
+      "url": "https://cbmsc-monitor.vercel.app/mcp"
+    }
+  }
+}
+```
+
+#### Option B: Local (stdio)
+
+1. **Install dependencies**:
 ```bash
 cd mcp-server
 npm install
 ```
 
-2. **Configure Cursor** by creating `.cursor/mcp.json` in the project root:
+2. Create `.cursor/mcp.json` in the project root:
 ```json
 {
   "mcpServers": {
@@ -217,9 +236,9 @@ npm install
 }
 ```
 
-The server reads `DATABASE_URL` from the project's `.env` file automatically -- no need to pass it in the config.
+The local server reads `DATABASE_URL` from the project's `.env` file automatically.
 
-3. **Restart Cursor** (or reload the window) so it picks up the new MCP server.
+After configuring either option, **restart Cursor** (or reload the window) so it picks up the new MCP server.
 
 ### Example Questions You Can Ask
 
@@ -233,7 +252,8 @@ The server reads `DATABASE_URL` from the project's `.env` file automatically -- 
 
 ```
 mcp-server/
-├── index.js           # Entry point (stdio transport, Zod schemas)
+├── server.js          # Shared tool registration (used by both transports)
+├── index.js           # Local entry point (stdio transport)
 ├── db.js              # Shared Neon PostgreSQL connection
 ├── package.json
 └── tools/
@@ -243,6 +263,9 @@ mcp-server/
     ├── fetch.js       # fetch_new_occurrences
     ├── occurrences.js # get_occurrences
     └── types.js       # list_occurrence_types
+
+api/
+└── mcp.js             # Vercel serverless function (Streamable HTTP transport)
 ```
 
 ## 🛠️ Development
