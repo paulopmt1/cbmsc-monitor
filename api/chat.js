@@ -1,4 +1,4 @@
-const { streamText } = require('ai');
+const { generateText } = require('ai');
 const { createAnthropic } = require('@ai-sdk/anthropic');
 const { jsonSchema } = require('ai');
 const { neon } = require('@neondatabase/serverless');
@@ -35,8 +35,6 @@ async function countOccurrences({ start_date, end_date, emergency_type, city } =
   const sql = getDb();
   const startDate = new Date(start_date);
   const endDate = new Date(end_date + 'T23:59:59');
-
-  const conditions = ['o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate}'];
   if (emergency_type) {
     const totalResult = city
       ? await sql`SELECT COUNT(*) as total FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} AND c.nome_cidade ILIKE ${'%' + city + '%'}`
@@ -109,66 +107,63 @@ async function bestTimeAnalysis({ start_date, end_date, emergency_type, city } =
   return { top_combinations: rows.slice(0, 10).map(r => ({ day: days[r.dow], hour: `${r.hour}:00`, count: r.count })) };
 }
 
-const chatTools = {
+const toolDefs = {
   count_occurrences: {
     description: 'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
-        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
-        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
-        city: { type: 'string', description: 'Cidade (busca parcial)' },
-      },
-      required: ['start_date', 'end_date'],
-    }),
-    execute: withTimeout(countOccurrences),
+    schema: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' } }, required: ['start_date', 'end_date'] },
+    handler: withTimeout(countOccurrences),
   },
   list_occurrence_types: {
     description: 'Listar todos os tipos de emergência com contagem.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
-        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
-      },
-    }),
-    execute: withTimeout(listTypes),
+    schema: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' } } },
+    handler: withTimeout(listTypes),
   },
   get_occurrences: {
     description: 'Buscar registros individuais de ocorrências com detalhes.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
-        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
-        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
-        city: { type: 'string', description: 'Cidade (busca parcial)' },
-        limit: { type: 'number', description: 'Máximo de registros (padrão: 50, máximo: 200)' },
-      },
-      required: ['start_date', 'end_date'],
-    }),
-    execute: withTimeout(getOccurrences),
+    schema: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' }, limit: { type: 'number', description: 'Máximo de registros (padrão: 50, máximo: 200)' } }, required: ['start_date', 'end_date'] },
+    handler: withTimeout(getOccurrences),
   },
   best_time_analysis: {
     description: 'Analisar distribuição de ocorrências por dia da semana e hora do dia.',
-    inputSchema: jsonSchema({
-      type: 'object',
-      properties: {
-        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
-        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
-        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
-        city: { type: 'string', description: 'Cidade (busca parcial)' },
-      },
-    }),
-    execute: withTimeout(bestTimeAnalysis),
+    schema: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' } } },
+    handler: withTimeout(bestTimeAnalysis),
   },
   list_cities: {
     description: 'Listar todas as cidades monitoradas com contagem de ocorrências.',
-    inputSchema: jsonSchema({ type: 'object', properties: {} }),
-    execute: withTimeout(listCities),
+    schema: { type: 'object', properties: {} },
+    handler: withTimeout(listCities),
   },
 };
+
+const anthropicTools = Object.entries(toolDefs).map(([name, def]) => ({
+  name,
+  description: def.description,
+  input_schema: def.schema,
+}));
+
+async function callAnthropic(apiKey, messages) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: buildSystemPrompt(),
+      messages,
+      tools: anthropicTools,
+    }),
+  });
+
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`Anthropic API ${resp.status}: ${body}`);
+  }
+  return resp.json();
+}
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -190,65 +185,61 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { messages } = req.body || {};
+  const { messages: chatHistory } = req.body || {};
 
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+  if (!chatHistory || !Array.isArray(chatHistory) || chatHistory.length === 0) {
     res.status(400).json({ error: 'messages array is required' });
     return;
   }
 
   try {
-    const anthropic = createAnthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const messages = chatHistory.slice(-20).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
-    const result = streamText({
-      model: anthropic('claude-haiku-4-5-20251001'),
-      system: buildSystemPrompt(),
-      messages: messages.slice(-20).map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      tools: chatTools,
-      maxSteps: 5,
-      onError({ error }) {
-        console.error('streamText error:', error);
-      },
-    });
+    let textResult = '';
+
+    for (let step = 0; step < 5; step++) {
+      const response = await callAnthropic(apiKey, messages);
+
+      const textBlocks = response.content.filter((b) => b.type === 'text');
+      const toolBlocks = response.content.filter((b) => b.type === 'tool_use');
+
+      if (textBlocks.length > 0) {
+        textResult += textBlocks.map((b) => b.text).join('');
+      }
+
+      if (response.stop_reason !== 'tool_use' || toolBlocks.length === 0) {
+        break;
+      }
+
+      const toolResults = [];
+      for (const toolCall of toolBlocks) {
+        const def = toolDefs[toolCall.name];
+        if (!def) {
+          toolResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: JSON.stringify({ error: `Unknown tool: ${toolCall.name}` }) });
+          continue;
+        }
+        try {
+          const result = await def.handler(toolCall.input || {});
+          toolResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: JSON.stringify(result) });
+        } catch (err) {
+          toolResults.push({ type: 'tool_result', tool_use_id: toolCall.id, content: JSON.stringify({ error: err.message }), is_error: true });
+        }
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({ role: 'user', content: toolResults });
+    }
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.write(`[jsonSchema type: ${typeof jsonSchema}]\n`);
-    const sampleSchema = jsonSchema({ type: 'object', properties: {} });
-    res.write(`[sample schema keys: ${Object.keys(sampleSchema || {}).join(',')}]\n`);
-    res.write(`[sample schema type prop: ${sampleSchema?.type}]\n`);
-    res.write(`[tool inputSchema keys: ${Object.keys(chatTools.list_cities.inputSchema || {}).join(',')}]\n`);
-    for await (const part of result.fullStream) {
-      switch (part.type) {
-        case 'text-delta':
-          res.write(part.text);
-          break;
-        case 'error':
-          res.write(`\n[ERR: ${part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}))}]`);
-          break;
-        case 'tool-call':
-          res.write(`\n[TOOL: ${part.toolName}(${JSON.stringify(part.args)})]`);
-          break;
-        case 'tool-result':
-          res.write(`\n[RESULT: ok]`);
-          break;
-        case 'start-step':
-          res.write(`\n[STEP_START]`);
-          break;
-        case 'finish-step':
-          res.write(`\n[STEP_END: ${part.finishReason}]`);
-          break;
-      }
-    }
-    res.end();
+    res.end(textResult);
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   }
 };
