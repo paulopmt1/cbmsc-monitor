@@ -253,7 +253,7 @@
         .loading {
             text-align: center;
             padding: 50px;
-            color: white;
+            color: #7f8c8d;
             font-size: 1.2rem;
         }
 
@@ -272,6 +272,47 @@
             padding: 50px;
             text-align: center;
             color: #7f8c8d;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+
+        .pagination button {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background: #667eea;
+            color: white;
+        }
+
+        .pagination button:disabled {
+            border-color: #ccc;
+            color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            color: #7f8c8d;
+            font-size: 0.95rem;
+        }
+
+        .load-more-sentinel {
+            height: 1px;
         }
 
         @media (max-width: 768px) {
@@ -651,7 +692,6 @@
     </div>
 
     <script>
-        // Emergency type icons mapping
         const emergencyIcons = {
             'Acidente de Trânsito': { icon: '🚗', color: '#e74c3c' },
             'Atendimento Pré-Hospitalar': { icon: '🚑', color: '#3498db' },
@@ -667,227 +707,231 @@
             'Salvamento/Busca/Resgate': { icon: '🆘', color: '#e74c3c' }
         };
 
-        // API base URL
         const API_BASE = window.location.origin;
+        const PAGE_SIZE = 50;
 
-        // State
-        let allOccurrences = [];
         let cities = [];
         let emergencyTypes = [];
+        let currentOffset = 0;
+        let totalServerCount = 0;
+        let loadedOccurrences = [];
+        let isLoading = false;
+        let observer = null;
 
-        // Initialize the application
         async function init() {
             try {
-                await Promise.all([
-                    loadOccurrences(),
+                const [, , occData] = await Promise.all([
                     loadCities(),
-                    loadEmergencyTypes()
+                    loadEmergencyTypes(),
+                    fetchPage(0)
                 ]);
-                
+
                 setupFilters();
+                totalServerCount = occData.total;
+                loadedOccurrences = occData.data;
+                currentOffset = loadedOccurrences.length;
+
                 updateStats();
-                renderOccurrences(allOccurrences);
+                renderInitial();
+                setupInfiniteScroll();
             } catch (error) {
                 showError('Erro ao carregar dados: ' + error.message);
             }
         }
 
-        // Load occurrences
-        async function loadOccurrences() {
-            const response = await fetch(`${API_BASE}/occurrences?limit=1000`);
-            const data = await response.json();
-            
-            if (data.message === 'ok') {
-                allOccurrences = data.data;
-            } else {
-                throw new Error('Falha ao carregar ocorrências');
-            }
+        async function fetchPage(offset) {
+            const params = new URLSearchParams({ limit: PAGE_SIZE, offset });
+
+            const cityVal = document.getElementById('cityFilter')?.value;
+            const typeVal = document.getElementById('emergencyFilter')?.value;
+            if (cityVal) params.set('city', cityVal);
+            if (typeVal) params.set('emergency_type', typeVal);
+
+            const res = await fetch(`${API_BASE}/occurrences?${params}`);
+            const json = await res.json();
+            if (json.message !== 'ok') throw new Error('Falha ao carregar ocorrências');
+            return json;
         }
 
-        // Load cities
         async function loadCities() {
-            const response = await fetch(`${API_BASE}/cities`);
-            const data = await response.json();
-            
-            if (data.message === 'ok') {
-                cities = data.data;
-            } else {
-                throw new Error('Falha ao carregar cidades');
-            }
+            const res = await fetch(`${API_BASE}/cities`);
+            const json = await res.json();
+            if (json.message === 'ok') cities = json.data;
         }
 
-        // Load emergency types
         async function loadEmergencyTypes() {
-            const response = await fetch(`${API_BASE}/emergency-types`);
-            const data = await response.json();
-            
-            if (data.message === 'ok') {
-                emergencyTypes = data.data;
-            } else {
-                throw new Error('Falha ao carregar tipos de emergência');
-            }
+            const res = await fetch(`${API_BASE}/emergency-types`);
+            const json = await res.json();
+            if (json.message === 'ok') emergencyTypes = json.data;
         }
 
-        // Setup filters
         function setupFilters() {
             const cityFilter = document.getElementById('cityFilter');
             const emergencyFilter = document.getElementById('emergencyFilter');
 
-            // Populate city filter
             cities.forEach(city => {
-                const option = document.createElement('option');
-                option.value = city.nome_cidade;
-                option.textContent = city.nome_cidade;
-                cityFilter.appendChild(option);
+                const opt = document.createElement('option');
+                opt.value = city.nome_cidade;
+                opt.textContent = city.nome_cidade;
+                cityFilter.appendChild(opt);
             });
 
-            // Populate emergency type filter
             emergencyTypes.forEach(type => {
-                const option = document.createElement('option');
-                option.value = type.title;
-                option.textContent = type.title;
-                emergencyFilter.appendChild(option);
+                const opt = document.createElement('option');
+                opt.value = type.title;
+                opt.textContent = type.title;
+                emergencyFilter.appendChild(opt);
             });
 
-            // Add event listeners
-            cityFilter.addEventListener('change', filterOccurrences);
-            emergencyFilter.addEventListener('change', filterOccurrences);
+            cityFilter.addEventListener('change', resetAndReload);
+            emergencyFilter.addEventListener('change', resetAndReload);
         }
 
-        // Filter occurrences
-        function filterOccurrences() {
-            const cityFilter = document.getElementById('cityFilter').value;
-            const emergencyFilter = document.getElementById('emergencyFilter').value;
+        async function resetAndReload() {
+            currentOffset = 0;
+            loadedOccurrences = [];
+            totalServerCount = 0;
 
-            let filtered = allOccurrences;
+            const content = document.getElementById('content');
+            content.innerHTML = '<div class="loading">Carregando ocorrências...</div>';
 
-            if (cityFilter) {
-                filtered = filtered.filter(occurrence => 
-                    occurrence.city_name === cityFilter
-                );
+            try {
+                const data = await fetchPage(0);
+                totalServerCount = data.total;
+                loadedOccurrences = data.data;
+                currentOffset = loadedOccurrences.length;
+
+                updateStats();
+                renderInitial();
+                setupInfiniteScroll();
+            } catch (err) {
+                showError('Erro ao carregar dados: ' + err.message);
             }
-
-            if (emergencyFilter) {
-                filtered = filtered.filter(occurrence => 
-                    occurrence.emergency_type_title === emergencyFilter
-                );
-            }
-
-            renderOccurrences(filtered);
-            updateStats(filtered);
         }
 
-        // Build HTML for a single occurrence card (used for chunked rendering)
-        function buildOccurrenceCardHTML(occurrence) {
-            const iconInfo = emergencyIcons[occurrence.emergency_type_title] ||
-                            { icon: '❓', color: '#95a5a6' };
-            const occurrenceDate = new Date(occurrence.ts_ocorrencia).toLocaleString('pt-BR');
-            const createdDate = new Date(occurrence.created_at).toLocaleString('pt-BR');
-            return `
-                <div class="occurrence-card">
-                    <div class="occurrence-header">
-                        <div class="emergency-icon" style="background-color: ${iconInfo.color}">
-                            ${iconInfo.icon}
-                        </div>
-                        <div class="emergency-info">
-                            <h3>${occurrence.emergency_type_title}</h3>
-                            <div class="city">📍 ${occurrence.city_name}</div>
-                        </div>
+        function buildCardHTML(occ) {
+            const info = emergencyIcons[occ.emergency_type_title] || { icon: '❓', color: '#95a5a6' };
+            const occDate = new Date(occ.ts_ocorrencia).toLocaleString('pt-BR');
+            const createdDate = new Date(occ.created_at).toLocaleString('pt-BR');
+
+            let html = `<div class="occurrence-card">
+                <div class="occurrence-header">
+                    <div class="emergency-icon" style="background-color:${info.color}">${info.icon}</div>
+                    <div class="emergency-info">
+                        <h3>${occ.emergency_type_title}</h3>
+                        <div class="city">📍 ${occ.city_name}</div>
                     </div>
-                    <div class="occurrence-details">
-                        <div class="detail-row">
-                            <span class="detail-label">ID:</span>
-                            <span class="detail-value">${occurrence.id_ocorrencia}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Data da Ocorrência:</span>
-                            <span class="detail-value">${occurrenceDate}</span>
-                        </div>
-                        <div class="detail-row">
-                            <span class="detail-label">Registrado em:</span>
-                            <span class="detail-value">${createdDate}</span>
-                        </div>
-                    </div>
-                    ${occurrence.de_inicial ? `<div class="description"><p>${occurrence.de_inicial}</p></div>` : ''}
-                    ${occurrence.lat_logradouro && occurrence.long_logradouro ? `
-                        <div class="coordinates" onclick="openGoogleMaps(${occurrence.lat_logradouro}, ${occurrence.long_logradouro})" style="cursor: pointer;">
-                            <h4>📍 Coordenadas GPS (Clique para abrir no Google Maps)</h4>
-                            <div class="coordinate-item"><span>Latitude:</span><span>${occurrence.lat_logradouro}</span></div>
-                            <div class="coordinate-item"><span>Longitude:</span><span>${occurrence.long_logradouro}</span></div>
-                        </div>
-                    ` : ''}
                 </div>
-            `;
+                <div class="occurrence-details">
+                    <div class="detail-row"><span class="detail-label">ID:</span><span class="detail-value">${occ.id_ocorrencia}</span></div>
+                    <div class="detail-row"><span class="detail-label">Data da Ocorrência:</span><span class="detail-value">${occDate}</span></div>
+                    <div class="detail-row"><span class="detail-label">Registrado em:</span><span class="detail-value">${createdDate}</span></div>
+                </div>`;
+
+            if (occ.de_inicial) {
+                html += `<div class="description"><p>${occ.de_inicial}</p></div>`;
+            }
+
+            if (occ.lat_logradouro && occ.long_logradouro) {
+                html += `<div class="coordinates" onclick="openGoogleMaps(${occ.lat_logradouro},${occ.long_logradouro})" style="cursor:pointer">
+                    <h4>📍 Coordenadas GPS (Clique para abrir no Google Maps)</h4>
+                    <div class="coordinate-item"><span>Latitude:</span><span>${occ.lat_logradouro}</span></div>
+                    <div class="coordinate-item"><span>Longitude:</span><span>${occ.long_logradouro}</span></div>
+                </div>`;
+            }
+
+            html += '</div>';
+            return html;
         }
 
-        // Render occurrences in chunks to avoid blocking the main thread (fixes freeze)
-        const RENDER_BATCH_SIZE = 50;
-
-        function renderOccurrences(occurrences) {
+        function renderInitial() {
             const content = document.getElementById('content');
 
-            if (occurrences.length === 0) {
-                content.innerHTML = `
-                    <div class="no-data">
-                        <h3>Nenhuma ocorrência encontrada</h3>
-                        <p>Tente ajustar os filtros para ver mais resultados.</p>
-                    </div>
-                `;
+            if (loadedOccurrences.length === 0) {
+                content.innerHTML = `<div class="no-data"><h3>Nenhuma ocorrência encontrada</h3><p>Tente ajustar os filtros para ver mais resultados.</p></div>`;
                 return;
             }
 
-            content.innerHTML = '<div class="occurrences-grid" id="occurrences-grid"></div>';
+            content.innerHTML = '<div class="occurrences-grid" id="occurrences-grid"></div><div class="load-more-sentinel" id="sentinel"></div>';
             const grid = document.getElementById('occurrences-grid');
-            let index = 0;
 
-            function renderBatch() {
-                const end = Math.min(index + RENDER_BATCH_SIZE, occurrences.length);
-                const fragment = document.createDocumentFragment();
-                const temp = document.createElement('div');
-                for (; index < end; index++) {
-                    temp.innerHTML = buildOccurrenceCardHTML(occurrences[index]);
-                    fragment.appendChild(temp.firstElementChild);
-                }
-                grid.appendChild(fragment);
-                if (index < occurrences.length) {
-                    requestAnimationFrame(renderBatch);
-                }
+            const fragment = document.createDocumentFragment();
+            const temp = document.createElement('div');
+            for (const occ of loadedOccurrences) {
+                temp.innerHTML = buildCardHTML(occ);
+                fragment.appendChild(temp.firstElementChild);
             }
-
-            requestAnimationFrame(renderBatch);
+            grid.appendChild(fragment);
         }
 
-        // Update statistics
-        function updateStats(filteredOccurrences = null) {
-            const totalOccurrences = document.getElementById('totalOccurrences');
-            const filteredOccurrencesEl = document.getElementById('filteredOccurrences');
-            const totalCities = document.getElementById('totalCities');
-            const totalEmergencyTypes = document.getElementById('totalEmergencyTypes');
+        function appendCards(occurrences) {
+            const grid = document.getElementById('occurrences-grid');
+            if (!grid) return;
 
-            totalOccurrences.textContent = allOccurrences.length;
-            filteredOccurrencesEl.textContent = filteredOccurrences ? filteredOccurrences.length : allOccurrences.length;
-            totalCities.textContent = cities.length;
-            totalEmergencyTypes.textContent = emergencyTypes.length;
+            const fragment = document.createDocumentFragment();
+            const temp = document.createElement('div');
+            for (const occ of occurrences) {
+                temp.innerHTML = buildCardHTML(occ);
+                fragment.appendChild(temp.firstElementChild);
+            }
+            grid.appendChild(fragment);
         }
 
-        // Show error
+        function setupInfiniteScroll() {
+            if (observer) observer.disconnect();
+
+            const sentinel = document.getElementById('sentinel');
+            if (!sentinel) return;
+
+            observer = new IntersectionObserver(async (entries) => {
+                if (!entries[0].isIntersecting || isLoading) return;
+                if (currentOffset >= totalServerCount) {
+                    observer.disconnect();
+                    return;
+                }
+                await loadNextPage();
+            }, { rootMargin: '400px' });
+
+            observer.observe(sentinel);
+        }
+
+        async function loadNextPage() {
+            if (isLoading || currentOffset >= totalServerCount) return;
+            isLoading = true;
+
+            try {
+                const data = await fetchPage(currentOffset);
+                if (data.data.length === 0) {
+                    isLoading = false;
+                    return;
+                }
+
+                loadedOccurrences = loadedOccurrences.concat(data.data);
+                currentOffset += data.data.length;
+                appendCards(data.data);
+                updateStats();
+            } catch (err) {
+                console.error('Error loading next page:', err);
+            } finally {
+                isLoading = false;
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalOccurrences').textContent = totalServerCount;
+            document.getElementById('filteredOccurrences').textContent = loadedOccurrences.length + (currentOffset < totalServerCount ? '+' : '');
+            document.getElementById('totalCities').textContent = cities.length;
+            document.getElementById('totalEmergencyTypes').textContent = emergencyTypes.length;
+        }
+
         function showError(message) {
-            const content = document.getElementById('content');
-            content.innerHTML = `
-                <div class="error">
-                    <h3>Erro</h3>
-                    <p>${message}</p>
-                </div>
-            `;
+            document.getElementById('content').innerHTML = `<div class="error"><h3>Erro</h3><p>${message}</p></div>`;
         }
 
-        // Open Google Maps with coordinates
         function openGoogleMaps(lat, lng) {
-            const url = `https://www.google.com/maps?q=${lat},${lng}`;
-            window.open(url, '_blank');
+            window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
         }
 
-        // Initialize when page loads
         document.addEventListener('DOMContentLoaded', init);
 
         // ─── Chat Widget ──────────────────────────────────────────────

@@ -54,6 +54,11 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_occurrences_city 
       ON occurrences(id_cidade)
     `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_occurrences_ts 
+      ON occurrences(ts_ocorrencia DESC)
+    `;
     
     console.log('Neon database initialized successfully with emergency types and cities');
   } catch (error) {

@@ -96,47 +96,55 @@ router.get('/readNewOccurrences', async (req, res) => {
 });
 
 // Get all occurrences with emergency type information (last 30 days only)
+// Supports optional ?city= and ?emergency_type= query filters plus ?limit= and ?offset= pagination.
 router.get('/', async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const limit = Math.min(req.query.limit ? parseInt(req.query.limit) : 50, 200);
     const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+    const cityFilter = req.query.city ? `%${req.query.city}%` : null;
+    const typeFilter = req.query.emergency_type ? `%${req.query.emergency_type}%` : null;
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Get total count (last 30 days)
     const countResult = await sql`
-      SELECT COUNT(*) FROM occurrences WHERE ts_ocorrencia >= ${thirtyDaysAgo}
+      SELECT COUNT(*) FROM occurrences o
+      LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
+      LEFT JOIN cities c ON o.id_cidade = c.id_cidade
+      WHERE o.ts_ocorrencia >= ${thirtyDaysAgo}
+        AND (${cityFilter}::text IS NULL OR c.nome_cidade ILIKE ${cityFilter})
+        AND (${typeFilter}::text IS NULL OR t.title ILIKE ${typeFilter})
     `;
     const total = parseInt(countResult[0].count);
 
-    // Get occurrences with pagination and emergency type info (last 30 days)
     const result = await sql`
-      SELECT o.*, t.title as emergency_type_title, c.nome_cidade as city_name
+      SELECT o.id_ocorrencia, o.lat_logradouro, o.long_logradouro,
+             o.created_at, o.ts_ocorrencia,
+             o.data->>'de_inicial' as de_inicial,
+             t.title as emergency_type_title, c.nome_cidade as city_name
       FROM occurrences o
       LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id
       LEFT JOIN cities c ON o.id_cidade = c.id_cidade
       WHERE o.ts_ocorrencia >= ${thirtyDaysAgo}
-      ORDER BY o.created_at DESC
+        AND (${cityFilter}::text IS NULL OR c.nome_cidade ILIKE ${cityFilter})
+        AND (${typeFilter}::text IS NULL OR t.title ILIKE ${typeFilter})
+      ORDER BY o.ts_ocorrencia DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
-    
+
     const occurrences = result.map(row => ({
       id_ocorrencia: row.id_ocorrencia,
-      id_tp_emergencia: row.id_tp_emergencia,
-      id_cidade: row.id_cidade,
       emergency_type_title: row.emergency_type_title,
       city_name: row.city_name,
       lat_logradouro: row.lat_logradouro,
       long_logradouro: row.long_logradouro,
       created_at: row.created_at,
       ts_ocorrencia: row.ts_ocorrencia,
-      de_inicial: row.data?.de_inicial || null,
-      data: row.data
+      de_inicial: row.de_inicial || null,
     }));
-    
-    res.json({ 
-      message: 'ok', 
-      data: occurrences, 
+
+    res.json({
+      message: 'ok',
+      data: occurrences,
       count: occurrences.length,
       total: total
     });
