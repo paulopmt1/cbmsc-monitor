@@ -1,12 +1,11 @@
 const { streamText } = require('ai');
 const { createAnthropic } = require('@ai-sdk/anthropic');
 const { z } = require('zod');
+const { neon } = require('@neondatabase/serverless');
 
-const { handler: countHandler } = require('../mcp-server/tools/count');
-const { handler: typesHandler } = require('../mcp-server/tools/types');
-const { handler: occurrencesHandler } = require('../mcp-server/tools/occurrences');
-const { handler: analysisHandler } = require('../mcp-server/tools/analysis');
-const { handler: citiesHandler } = require('../mcp-server/tools/cities');
+function getDb() {
+  return neon(process.env.DATABASE_URL);
+}
 
 function buildSystemPrompt() {
   const today = new Date().toISOString().split('T')[0];
@@ -22,76 +21,138 @@ Responda sempre em Português (Brasil), a menos que o usuário escreva em outro 
 Seja conciso mas informativo. Use formatação markdown quando apropriado (listas, negrito, tabelas).`;
 }
 
-// Workaround for AI SDK v6 bug (#13460): tool() stores schemas on .parameters
-// but the SDK reads .inputSchema. Define tools as plain objects with inputSchema.
+function withTimeout(fn, ms = 8000) {
+  return (...args) =>
+    Promise.race([
+      fn(...args),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Tool execution timed out')), ms)
+      ),
+    ]);
+}
+
+async function countOccurrences({ start_date, end_date, emergency_type, city } = {}) {
+  const sql = getDb();
+  const startDate = new Date(start_date);
+  const endDate = new Date(end_date + 'T23:59:59');
+
+  const conditions = ['o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate}'];
+  if (emergency_type) {
+    const totalResult = city
+      ? await sql`SELECT COUNT(*) as total FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} AND c.nome_cidade ILIKE ${'%' + city + '%'}`
+      : await sql`SELECT COUNT(*) as total FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'}`;
+    const breakdownResult = city
+      ? await sql`SELECT t.title as emergency_type, COUNT(*) as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} AND c.nome_cidade ILIKE ${'%' + city + '%'} GROUP BY t.title ORDER BY count DESC`
+      : await sql`SELECT t.title as emergency_type, COUNT(*) as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} GROUP BY t.title ORDER BY count DESC`;
+    return { period: { start: start_date, end: end_date }, total: parseInt(totalResult[0].total), by_type: breakdownResult.map(r => ({ type: r.emergency_type, count: parseInt(r.count) })) };
+  }
+  const totalResult = city
+    ? await sql`SELECT COUNT(*) as total FROM occurrences o LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND c.nome_cidade ILIKE ${'%' + city + '%'}`
+    : await sql`SELECT COUNT(*) as total FROM occurrences WHERE ts_ocorrencia BETWEEN ${startDate} AND ${endDate}`;
+  const breakdownResult = city
+    ? await sql`SELECT t.title as emergency_type, COUNT(*) as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND c.nome_cidade ILIKE ${'%' + city + '%'} GROUP BY t.title ORDER BY count DESC`
+    : await sql`SELECT t.title as emergency_type, COUNT(*) as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} GROUP BY t.title ORDER BY count DESC`;
+  return { period: { start: start_date, end: end_date }, total: parseInt(totalResult[0].total), by_type: breakdownResult.map(r => ({ type: r.emergency_type, count: parseInt(r.count) })) };
+}
+
+async function listCities() {
+  const sql = getDb();
+  const result = await sql`
+    SELECT c.id_cidade as id, c.nome_cidade as name, COUNT(o.id_ocorrencia)::int as occurrence_count
+    FROM cities c LEFT JOIN occurrences o ON c.id_cidade = o.id_cidade
+    GROUP BY c.id_cidade, c.nome_cidade ORDER BY c.nome_cidade
+  `;
+  return { cities: result.map(r => ({ id: r.id, name: r.name, occurrence_count: parseInt(r.occurrence_count) })) };
+}
+
+async function listTypes({ start_date, end_date } = {}) {
+  const sql = getDb();
+  const result = start_date && end_date
+    ? await sql`SELECT t.title, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${new Date(start_date)} AND ${new Date(end_date + 'T23:59:59')} GROUP BY t.title ORDER BY count DESC`
+    : await sql`SELECT t.title, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id GROUP BY t.title ORDER BY count DESC`;
+  return { types: result.map(r => ({ type: r.title, count: parseInt(r.count) })) };
+}
+
+async function getOccurrences({ start_date, end_date, emergency_type, city, limit = 50 } = {}) {
+  const sql = getDb();
+  const startDate = new Date(start_date);
+  const endDate = new Date(end_date + 'T23:59:59');
+  const lim = Math.min(limit || 50, 200);
+  let rows;
+  if (emergency_type && city) {
+    rows = await sql`SELECT o.ts_ocorrencia, t.title as emergency_type, c.nome_cidade as city, o.latitude, o.longitude FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} AND c.nome_cidade ILIKE ${'%' + city + '%'} ORDER BY o.ts_ocorrencia DESC LIMIT ${lim}`;
+  } else if (emergency_type) {
+    rows = await sql`SELECT o.ts_ocorrencia, t.title as emergency_type, c.nome_cidade as city, o.latitude, o.longitude FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND t.title ILIKE ${'%' + emergency_type + '%'} ORDER BY o.ts_ocorrencia DESC LIMIT ${lim}`;
+  } else if (city) {
+    rows = await sql`SELECT o.ts_ocorrencia, t.title as emergency_type, c.nome_cidade as city, o.latitude, o.longitude FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} AND c.nome_cidade ILIKE ${'%' + city + '%'} ORDER BY o.ts_ocorrencia DESC LIMIT ${lim}`;
+  } else {
+    rows = await sql`SELECT o.ts_ocorrencia, t.title as emergency_type, c.nome_cidade as city, o.latitude, o.longitude FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${startDate} AND ${endDate} ORDER BY o.ts_ocorrencia DESC LIMIT ${lim}`;
+  }
+  return { count: rows.length, data: rows };
+}
+
+async function bestTimeAnalysis({ start_date, end_date, emergency_type, city } = {}) {
+  const sql = getDb();
+  const s = start_date ? new Date(start_date) : new Date(Date.now() - 90 * 86400000);
+  const e = end_date ? new Date(end_date + 'T23:59:59') : new Date();
+  let rows;
+  if (emergency_type && city) {
+    rows = await sql`SELECT EXTRACT(DOW FROM o.ts_ocorrencia)::int as dow, EXTRACT(HOUR FROM o.ts_ocorrencia)::int as hour, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${s} AND ${e} AND t.title ILIKE ${'%' + emergency_type + '%'} AND c.nome_cidade ILIKE ${'%' + city + '%'} GROUP BY dow, hour ORDER BY count DESC`;
+  } else if (emergency_type) {
+    rows = await sql`SELECT EXTRACT(DOW FROM o.ts_ocorrencia)::int as dow, EXTRACT(HOUR FROM o.ts_ocorrencia)::int as hour, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${s} AND ${e} AND t.title ILIKE ${'%' + emergency_type + '%'} GROUP BY dow, hour ORDER BY count DESC`;
+  } else if (city) {
+    rows = await sql`SELECT EXTRACT(DOW FROM o.ts_ocorrencia)::int as dow, EXTRACT(HOUR FROM o.ts_ocorrencia)::int as hour, COUNT(*)::int as count FROM occurrences o LEFT JOIN cities c ON o.id_cidade = c.id_cidade WHERE o.ts_ocorrencia BETWEEN ${s} AND ${e} AND c.nome_cidade ILIKE ${'%' + city + '%'} GROUP BY dow, hour ORDER BY count DESC`;
+  } else {
+    rows = await sql`SELECT EXTRACT(DOW FROM o.ts_ocorrencia)::int as dow, EXTRACT(HOUR FROM o.ts_ocorrencia)::int as hour, COUNT(*)::int as count FROM occurrences o WHERE o.ts_ocorrencia BETWEEN ${s} AND ${e} GROUP BY dow, hour ORDER BY count DESC`;
+  }
+  const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  return { top_combinations: rows.slice(0, 10).map(r => ({ day: days[r.dow], hour: `${r.hour}:00`, count: r.count })) };
+}
+
 const chatTools = {
   count_occurrences: {
-    description:
-      'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade. Retorna total e breakdown por tipo.',
+    description: 'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade.',
     inputSchema: z.object({
       start_date: z.string().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z
-        .string()
-        .optional()
-        .describe('Tipo de emergência (busca parcial, case-insensitive)'),
-      city: z
-        .string()
-        .optional()
-        .describe('Nome da cidade (busca parcial, case-insensitive)'),
+      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
+      city: z.string().optional().describe('Cidade (busca parcial)'),
     }),
-    execute: async (params) => countHandler(params),
+    execute: withTimeout(countOccurrences),
   },
-
   list_occurrence_types: {
-    description:
-      'Listar todos os tipos de emergência com contagem de ocorrências. Pode ser filtrado por período.',
+    description: 'Listar todos os tipos de emergência com contagem.',
     inputSchema: z.object({
       start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
     }),
-    execute: async (params) => typesHandler(params),
+    execute: withTimeout(listTypes),
   },
-
   get_occurrences: {
-    description:
-      'Buscar registros individuais de ocorrências com detalhes: tipo, cidade, data/hora, coordenadas GPS, descrição.',
+    description: 'Buscar registros individuais de ocorrências com detalhes.',
     inputSchema: z.object({
       start_date: z.string().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z
-        .string()
-        .optional()
-        .describe('Tipo de emergência (busca parcial)'),
-      city: z.string().optional().describe('Nome da cidade (busca parcial)'),
-      limit: z
-        .number()
-        .optional()
-        .describe('Máximo de registros (padrão: 50, máximo: 200)'),
+      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
+      city: z.string().optional().describe('Cidade (busca parcial)'),
+      limit: z.number().optional().describe('Máximo de registros (padrão: 50, máximo: 200)'),
     }),
-    execute: async (params) => occurrencesHandler(params),
+    execute: withTimeout(getOccurrences),
   },
-
   best_time_analysis: {
-    description:
-      'Analisar distribuição de ocorrências por dia da semana e hora do dia. Identifica horários e dias de pico.',
+    description: 'Analisar distribuição de ocorrências por dia da semana e hora do dia.',
     inputSchema: z.object({
       start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z
-        .string()
-        .optional()
-        .describe('Tipo de emergência (busca parcial)'),
-      city: z.string().optional().describe('Nome da cidade (busca parcial)'),
+      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
+      city: z.string().optional().describe('Cidade (busca parcial)'),
     }),
-    execute: async (params) => analysisHandler(params),
+    execute: withTimeout(bestTimeAnalysis),
   },
-
   list_cities: {
-    description:
-      'Listar todas as cidades monitoradas com a contagem total de ocorrências de cada uma.',
+    description: 'Listar todas as cidades monitoradas com contagem de ocorrências.',
     inputSchema: z.object({}),
-    execute: async () => citiesHandler(),
+    execute: withTimeout(listCities),
   },
 };
 
@@ -141,23 +202,7 @@ module.exports = async (req, res) => {
       },
     });
 
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    for await (const part of result.fullStream) {
-      if (part.type === 'text-delta') {
-        res.write(part.text);
-      } else if (part.type === 'error') {
-        const msg = part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}));
-        res.write(`\n[ERROR: ${msg}]`);
-      } else if (part.type === 'finish-step') {
-        res.write(`\n[FINISH_STEP reason=${part.finishReason} isContinued=${part.isContinued}]`);
-      } else if (part.type === 'tool-call') {
-        res.write(`\n[TOOL_CALL: ${part.toolName} args=${JSON.stringify(part.args)}]`);
-      } else if (part.type === 'tool-result') {
-        const resultStr = JSON.stringify(part.result).substring(0, 200);
-        res.write(`\n[TOOL_RESULT: ${part.toolName} result=${resultStr}]`);
-      }
-    }
-    res.end();
+    result.pipeTextStreamToResponse(res);
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
