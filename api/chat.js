@@ -141,7 +141,24 @@ module.exports = async (req, res) => {
       },
     });
 
-    await result.pipeTextStreamToResponse(res);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+
+    let hasContent = false;
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        hasContent = true;
+        res.write(part.text);
+      } else if (part.type === 'error') {
+        console.error('Stream error part:', part.error);
+        const errMsg = part.error?.message || String(part.error);
+        if (!hasContent) {
+          res.status(500);
+        }
+        res.write(`\n[Erro: ${errMsg}]`);
+      }
+    }
+    res.end();
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
