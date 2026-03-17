@@ -142,26 +142,20 @@ module.exports = async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    const debugEvents = [];
     for await (const part of result.fullStream) {
-      debugEvents.push(part.type);
       if (part.type === 'text-delta') {
         res.write(part.text);
       } else if (part.type === 'error') {
         const msg = part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}));
         res.write(`\n[ERROR: ${msg}]`);
+      } else if (part.type === 'finish-step') {
+        res.write(`\n[FINISH_STEP reason=${part.finishReason} isContinued=${part.isContinued}]`);
       } else if (part.type === 'tool-call') {
-        res.write(`\n[TOOL_CALL: ${part.toolName} ${JSON.stringify(part.args)}]`);
+        res.write(`\n[TOOL_CALL: ${part.toolName} args=${JSON.stringify(part.args)}]`);
       } else if (part.type === 'tool-result') {
-        res.write(`\n[TOOL_RESULT: ${part.toolName}]`);
-      } else if (part.type === 'tool-error') {
-        res.write(`\n[TOOL_ERROR: ${JSON.stringify(part)}]`);
+        const resultStr = JSON.stringify(part.result).substring(0, 200);
+        res.write(`\n[TOOL_RESULT: ${part.toolName} result=${resultStr}]`);
       }
-    }
-    if (debugEvents.length === 0) {
-      res.write('[NO EVENTS IN STREAM]');
-    } else {
-      res.write(`\n[EVENTS: ${debugEvents.join(',')}]`);
     }
     res.end();
   } catch (error) {
