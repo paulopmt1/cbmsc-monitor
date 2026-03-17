@@ -217,6 +217,11 @@ module.exports = async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.write(`[jsonSchema type: ${typeof jsonSchema}]\n`);
+    const sampleSchema = jsonSchema({ type: 'object', properties: {} });
+    res.write(`[sample schema keys: ${Object.keys(sampleSchema || {}).join(',')}]\n`);
+    res.write(`[sample schema type prop: ${sampleSchema?.type}]\n`);
+    res.write(`[tool inputSchema keys: ${Object.keys(chatTools.list_cities.inputSchema || {}).join(',')}]\n`);
     for await (const part of result.fullStream) {
       switch (part.type) {
         case 'text-delta':
