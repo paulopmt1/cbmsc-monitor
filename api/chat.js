@@ -1,4 +1,4 @@
-const { streamText, tool } = require('ai');
+const { streamText } = require('ai');
 const { createAnthropic } = require('@ai-sdk/anthropic');
 const { z } = require('zod');
 
@@ -22,11 +22,13 @@ Responda sempre em Português (Brasil), a menos que o usuário escreva em outro 
 Seja conciso mas informativo. Use formatação markdown quando apropriado (listas, negrito, tabelas).`;
 }
 
+// Workaround for AI SDK v6 bug (#13460): tool() stores schemas on .parameters
+// but the SDK reads .inputSchema. Define tools as plain objects with inputSchema.
 const chatTools = {
-  count_occurrences: tool({
+  count_occurrences: {
     description:
       'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade. Retorna total e breakdown por tipo.',
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
       emergency_type: z
@@ -39,22 +41,22 @@ const chatTools = {
         .describe('Nome da cidade (busca parcial, case-insensitive)'),
     }),
     execute: async (params) => countHandler(params),
-  }),
+  },
 
-  list_occurrence_types: tool({
+  list_occurrence_types: {
     description:
       'Listar todos os tipos de emergência com contagem de ocorrências. Pode ser filtrado por período.',
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
     }),
     execute: async (params) => typesHandler(params),
-  }),
+  },
 
-  get_occurrences: tool({
+  get_occurrences: {
     description:
       'Buscar registros individuais de ocorrências com detalhes: tipo, cidade, data/hora, coordenadas GPS, descrição.',
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
       emergency_type: z
@@ -68,12 +70,12 @@ const chatTools = {
         .describe('Máximo de registros (padrão: 50, máximo: 200)'),
     }),
     execute: async (params) => occurrencesHandler(params),
-  }),
+  },
 
-  best_time_analysis: tool({
+  best_time_analysis: {
     description:
       'Analisar distribuição de ocorrências por dia da semana e hora do dia. Identifica horários e dias de pico.',
-    parameters: z.object({
+    inputSchema: z.object({
       start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
       end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
       emergency_type: z
@@ -83,14 +85,14 @@ const chatTools = {
       city: z.string().optional().describe('Nome da cidade (busca parcial)'),
     }),
     execute: async (params) => analysisHandler(params),
-  }),
+  },
 
-  list_cities: tool({
+  list_cities: {
     description:
       'Listar todas as cidades monitoradas com a contagem total de ocorrências de cada uma.',
-    parameters: z.object({}),
+    inputSchema: z.object({}),
     execute: async () => citiesHandler(),
-  }),
+  },
 };
 
 module.exports = async (req, res) => {
@@ -134,9 +136,12 @@ module.exports = async (req, res) => {
       })),
       tools: chatTools,
       maxSteps: 5,
+      onError({ error }) {
+        console.error('streamText error:', error);
+      },
     });
 
-    result.pipeTextStreamToResponse(res);
+    await result.pipeTextStreamToResponse(res);
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
