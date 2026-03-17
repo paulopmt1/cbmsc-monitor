@@ -216,7 +216,30 @@ module.exports = async (req, res) => {
       },
     });
 
-    result.pipeTextStreamToResponse(res);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    for await (const part of result.fullStream) {
+      switch (part.type) {
+        case 'text-delta':
+          res.write(part.text);
+          break;
+        case 'error':
+          res.write(`\n[ERR: ${part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}))}]`);
+          break;
+        case 'tool-call':
+          res.write(`\n[TOOL: ${part.toolName}(${JSON.stringify(part.args)})]`);
+          break;
+        case 'tool-result':
+          res.write(`\n[RESULT: ok]`);
+          break;
+        case 'start-step':
+          res.write(`\n[STEP_START]`);
+          break;
+        case 'finish-step':
+          res.write(`\n[STEP_END: ${part.finishReason}]`);
+          break;
+      }
+    }
+    res.end();
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
