@@ -128,7 +128,7 @@ module.exports = async (req, res) => {
     });
 
     const result = streamText({
-      model: anthropic('claude-3-5-haiku-20241022'),
+      model: anthropic('claude-haiku-4-5-20251001'),
       system: buildSystemPrompt(),
       messages: messages.slice(-20).map((m) => ({
         role: m.role,
@@ -137,31 +137,11 @@ module.exports = async (req, res) => {
       tools: chatTools,
       maxSteps: 5,
       onError({ error }) {
-        console.error('streamText error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        console.error('streamText error:', error);
       },
     });
 
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
-    let hasContent = false;
-    for await (const part of result.fullStream) {
-      if (part.type === 'text-delta') {
-        hasContent = true;
-        res.write(part.text);
-      } else if (part.type === 'error') {
-        console.error('Stream error part:', part.error);
-        const errDetail = typeof part.error === 'object'
-          ? JSON.stringify(part.error, Object.getOwnPropertyNames(part.error))
-          : String(part.error);
-        console.error('Stream error part:', errDetail);
-        if (!hasContent) {
-          res.status(500);
-        }
-        res.write(`\n[Erro: ${errDetail}]`);
-      }
-    }
-    res.end();
+    result.pipeTextStreamToResponse(res);
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
