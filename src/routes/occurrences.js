@@ -58,9 +58,10 @@ router.get('/readNewOccurrences', async (req, res) => {
           const latitude = occurrence.lat_logradouro ? parseFloat(occurrence.lat_logradouro) : null;
           const longitude = occurrence.long_logradouro ? parseFloat(occurrence.long_logradouro) : null;
           
-          // Extract occurrence timestamp from the data
-          const occurrenceTimestamp = occurrence.ts_ocorrencia ? 
-            new Date(occurrence.ts_ocorrencia) : new Date();
+          const rawTs = occurrence.ts_ocorrencia;
+          const occurrenceTimestamp = rawTs
+            ? new Date(rawTs.replace(' ', 'T') + '-03:00')
+            : new Date();
           
           // Save the object to database with foreign keys, GPS coordinates, and timestamp
           await sql`
