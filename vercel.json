@@ -6,6 +6,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/chat.js",
+      "use": "@vercel/node"
+    },
+    {
       "src": "server-neon.js",
       "use": "@vercel/node"
     }
@@ -14,6 +18,10 @@
     {
       "src": "/mcp",
       "dest": "/api/mcp.js"
+    },
+    {
+      "src": "/api/chat",
+      "dest": "/api/chat.js"
     },
     {
       "src": "/(.*)",
