@@ -137,7 +137,7 @@ module.exports = async (req, res) => {
       tools: chatTools,
       maxSteps: 5,
       onError({ error }) {
-        console.error('streamText error:', error);
+        console.error('streamText error:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
       },
     });
 
@@ -151,11 +151,14 @@ module.exports = async (req, res) => {
         res.write(part.text);
       } else if (part.type === 'error') {
         console.error('Stream error part:', part.error);
-        const errMsg = part.error?.message || String(part.error);
+        const errDetail = typeof part.error === 'object'
+          ? JSON.stringify(part.error, Object.getOwnPropertyNames(part.error))
+          : String(part.error);
+        console.error('Stream error part:', errDetail);
         if (!hasContent) {
           res.status(500);
         }
-        res.write(`\n[Erro: ${errMsg}]`);
+        res.write(`\n[Erro: ${errDetail}]`);
       }
     }
     res.end();
