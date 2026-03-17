@@ -141,7 +141,21 @@ module.exports = async (req, res) => {
       },
     });
 
-    result.pipeTextStreamToResponse(res);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        res.write(part.text);
+      } else if (part.type === 'error') {
+        const msg = part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}));
+        console.error('Stream error:', msg);
+        res.write(`\n[DEBUG error: ${msg}]`);
+      } else if (part.type === 'tool-call') {
+        console.log('Tool call:', part.toolName, JSON.stringify(part.args));
+      } else if (part.type === 'tool-result') {
+        console.log('Tool result:', part.toolName);
+      }
+    }
+    res.end();
   } catch (error) {
     console.error('Chat error:', error);
     if (!res.headersSent) {
