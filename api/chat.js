@@ -142,18 +142,26 @@ module.exports = async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    const debugEvents = [];
     for await (const part of result.fullStream) {
+      debugEvents.push(part.type);
       if (part.type === 'text-delta') {
         res.write(part.text);
       } else if (part.type === 'error') {
         const msg = part.error?.message || JSON.stringify(part.error, Object.getOwnPropertyNames(part.error || {}));
-        console.error('Stream error:', msg);
-        res.write(`\n[DEBUG error: ${msg}]`);
+        res.write(`\n[ERROR: ${msg}]`);
       } else if (part.type === 'tool-call') {
-        console.log('Tool call:', part.toolName, JSON.stringify(part.args));
+        res.write(`\n[TOOL_CALL: ${part.toolName} ${JSON.stringify(part.args)}]`);
       } else if (part.type === 'tool-result') {
-        console.log('Tool result:', part.toolName);
+        res.write(`\n[TOOL_RESULT: ${part.toolName}]`);
+      } else if (part.type === 'tool-error') {
+        res.write(`\n[TOOL_ERROR: ${JSON.stringify(part)}]`);
       }
+    }
+    if (debugEvents.length === 0) {
+      res.write('[NO EVENTS IN STREAM]');
+    } else {
+      res.write(`\n[EVENTS: ${debugEvents.join(',')}]`);
     }
     res.end();
   } catch (error) {
