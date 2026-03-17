@@ -1,6 +1,6 @@
 const { streamText } = require('ai');
 const { createAnthropic } = require('@ai-sdk/anthropic');
-const { z } = require('zod');
+const { jsonSchema } = require('ai');
 const { neon } = require('@neondatabase/serverless');
 
 function getDb() {
@@ -112,46 +112,60 @@ async function bestTimeAnalysis({ start_date, end_date, emergency_type, city } =
 const chatTools = {
   count_occurrences: {
     description: 'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade.',
-    inputSchema: z.object({
-      start_date: z.string().describe('Data início (YYYY-MM-DD)'),
-      end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
-      city: z.string().optional().describe('Cidade (busca parcial)'),
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
+        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
+        city: { type: 'string', description: 'Cidade (busca parcial)' },
+      },
+      required: ['start_date', 'end_date'],
     }),
     execute: withTimeout(countOccurrences),
   },
   list_occurrence_types: {
     description: 'Listar todos os tipos de emergência com contagem.',
-    inputSchema: z.object({
-      start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
-      end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
+      },
     }),
     execute: withTimeout(listTypes),
   },
   get_occurrences: {
     description: 'Buscar registros individuais de ocorrências com detalhes.',
-    inputSchema: z.object({
-      start_date: z.string().describe('Data início (YYYY-MM-DD)'),
-      end_date: z.string().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
-      city: z.string().optional().describe('Cidade (busca parcial)'),
-      limit: z.number().optional().describe('Máximo de registros (padrão: 50, máximo: 200)'),
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
+        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
+        city: { type: 'string', description: 'Cidade (busca parcial)' },
+        limit: { type: 'number', description: 'Máximo de registros (padrão: 50, máximo: 200)' },
+      },
+      required: ['start_date', 'end_date'],
     }),
     execute: withTimeout(getOccurrences),
   },
   best_time_analysis: {
     description: 'Analisar distribuição de ocorrências por dia da semana e hora do dia.',
-    inputSchema: z.object({
-      start_date: z.string().optional().describe('Data início (YYYY-MM-DD)'),
-      end_date: z.string().optional().describe('Data fim (YYYY-MM-DD)'),
-      emergency_type: z.string().optional().describe('Tipo de emergência (busca parcial)'),
-      city: z.string().optional().describe('Cidade (busca parcial)'),
+    inputSchema: jsonSchema({
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' },
+        end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' },
+        emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' },
+        city: { type: 'string', description: 'Cidade (busca parcial)' },
+      },
     }),
     execute: withTimeout(bestTimeAnalysis),
   },
   list_cities: {
     description: 'Listar todas as cidades monitoradas com contagem de ocorrências.',
-    inputSchema: z.object({}),
+    inputSchema: jsonSchema({ type: 'object', properties: {} }),
     execute: withTimeout(listCities),
   },
 };
