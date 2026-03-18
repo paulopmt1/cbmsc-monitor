@@ -805,9 +805,122 @@
                 right: -12px;
             }
         }
+
+        /* Name Prompt Modal */
+        .name-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .name-modal-overlay.visible {
+            opacity: 1;
+        }
+
+        .name-modal {
+            background: white;
+            border-radius: 16px;
+            padding: 36px 32px 28px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            transform: translateY(20px) scale(0.95);
+            transition: transform 0.3s ease;
+            text-align: center;
+        }
+
+        .name-modal-overlay.visible .name-modal {
+            transform: translateY(0) scale(1);
+        }
+
+        .name-modal .modal-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 1.8rem;
+            color: white;
+        }
+
+        .name-modal h2 {
+            color: #2c3e50;
+            font-size: 1.4rem;
+            margin-bottom: 8px;
+        }
+
+        .name-modal p {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .name-modal input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+            text-align: center;
+        }
+
+        .name-modal input:focus {
+            border-color: #667eea;
+        }
+
+        .name-modal button {
+            margin-top: 16px;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+
+        .name-modal button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .name-modal button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
+    <!-- Name Prompt Modal -->
+    <div id="nameModal" class="name-modal-overlay" style="display:none">
+        <div class="name-modal">
+            <div class="modal-icon"><i class="fas fa-user"></i></div>
+            <h2 id="nameModalTitle">Bem-vindo!</h2>
+            <p id="nameModalDesc">Qual é o seu nome? Isso nos ajuda a personalizar sua experiência.</p>
+            <input id="nameModalInput" type="text" maxlength="80" autocomplete="given-name" />
+            <button id="nameModalBtn" disabled>Continuar</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <div class="header-actions">
@@ -915,6 +1028,10 @@
                 chatErrorConnection: 'Erro de conexão: ',
                 chatErrorLocalConnect: 'Não foi possível conectar ao modelo local. Verifique se o proxy está rodando (node local-proxy.js) e se o LM Studio está ativo em localhost:1234.',
                 chatErrorTools: 'Erro ao executar ferramentas no servidor',
+                nameModalTitle: 'Bem-vindo!',
+                nameModalDesc: 'Qual é o seu nome? Isso nos ajuda a personalizar sua experiência.',
+                nameModalPlaceholder: 'Seu nome',
+                nameModalBtn: 'Continuar',
             },
             en: {
                 pageTitle: 'CBM SC Monitor - Occurrences',
@@ -957,6 +1074,10 @@
                 chatErrorConnection: 'Connection error: ',
                 chatErrorLocalConnect: 'Could not connect to the local model. Make sure the proxy is running (node local-proxy.js) and LM Studio is active on localhost:1234.',
                 chatErrorTools: 'Error executing tools on server',
+                nameModalTitle: 'Welcome!',
+                nameModalDesc: 'What is your name? This helps us personalize your experience.',
+                nameModalPlaceholder: 'Your name',
+                nameModalBtn: 'Continue',
             }
         };
 
@@ -1284,6 +1405,67 @@
 
         document.addEventListener('DOMContentLoaded', init);
 
+        // ─── User Name & Access Logging ───────────────────────────────
+        const USER_NAME_KEY = 'cbmsc-user-name';
+
+        function getUserName() {
+            return localStorage.getItem(USER_NAME_KEY) || '';
+        }
+
+        function setUserName(name) {
+            localStorage.setItem(USER_NAME_KEY, name.trim());
+        }
+
+        function logAccess(action, details) {
+            const payload = { user_name: getUserName() || null, action, details };
+            fetch(API_BASE + '/api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).catch(() => {});
+        }
+
+        function showNameModal() {
+            const modal = document.getElementById('nameModal');
+            const input = document.getElementById('nameModalInput');
+            const btn = document.getElementById('nameModalBtn');
+
+            document.getElementById('nameModalTitle').textContent = t('nameModalTitle');
+            document.getElementById('nameModalDesc').textContent = t('nameModalDesc');
+            input.placeholder = t('nameModalPlaceholder');
+            btn.textContent = t('nameModalBtn');
+
+            modal.style.display = 'flex';
+            requestAnimationFrame(() => modal.classList.add('visible'));
+            input.focus();
+
+            input.addEventListener('input', () => {
+                btn.disabled = !input.value.trim();
+            });
+
+            function submit() {
+                const name = input.value.trim();
+                if (!name) return;
+                setUserName(name);
+                modal.classList.remove('visible');
+                setTimeout(() => { modal.style.display = 'none'; }, 300);
+                logAccess('page_visit', { first_visit: true });
+            }
+
+            btn.addEventListener('click', submit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submit();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!getUserName()) {
+                showNameModal();
+            } else {
+                logAccess('page_visit');
+            }
+        });
+
         // ─── Chat Widget ──────────────────────────────────────────────
         const chatMessages = [];
         let chatWaiting = false;
@@ -1520,6 +1702,7 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
             panel.classList.toggle('hidden', !isHidden);
             toggle.classList.toggle('active', isHidden);
             if (isHidden) {
+                logAccess('chat_opened');
                 document.getElementById('chatInput').focus();
                 scrollChat();
             }
@@ -1593,11 +1776,12 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
                     msgEl.querySelector('.message-content').innerHTML = marked.parse(fullText);
                     scrollChat();
                     chatMessages.push({ role: 'assistant', content: fullText });
+                    logAccess('chat_message', { provider: 'local', user_message: text, ai_response: fullText, success: true });
                 } else {
                     const res = await fetch(API_BASE + '/api/chat', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ messages: chatMessages, lang: currentLang }),
+                        body: JSON.stringify({ messages: chatMessages, lang: currentLang, user_name: getUserName() || undefined }),
                     });
 
                     hideTyping();
@@ -1635,6 +1819,7 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
                 const errEl = appendChat('assistant', '');
                 errEl.className = 'chat-message error';
                 errEl.querySelector('.message-content').textContent = t('chatErrorConnection') + err.message;
+                logAccess('chat_message', { provider: chatConfig.provider, user_message: text, ai_response: null, success: false, error: err.message });
             } finally {
                 chatWaiting = false;
                 input.disabled = false;

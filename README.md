@@ -7,7 +7,7 @@ A web application for monitoring emergency occurrences from the Santa Catarina F
 ## Features
 
 - **Interactive Dashboard**: Occurrence cards with filters by city and emergency type, stats overview, infinite scroll, and GPS links to Google Maps
-- **AI Chat**: Floating chat widget powered by Anthropic Claude Opus 4.6 (or local LLM via LM Studio) that can query occurrence data using tool calls
+- **AI Chat**: Floating chat widget powered by Anthropic Claude 3.5 Sonnet (or local LLM via LM Studio) that can query occurrence data using tool calls
 - **MCP Server**: [Model Context Protocol](https://modelcontextprotocol.io/) integration letting AI assistants like Cursor query the data directly
 - **Internationalization**: Full PT-BR and EN support
 - **RESTful API**: Endpoints for occurrences, stats, reference data, and database export
@@ -162,7 +162,7 @@ public/index.html       # Dashboard SPA
 
 ## Tech Stack
 
-Node.js, Express, PostgreSQL (Neon), Anthropic Claude Opus 4.6, MCP SDK, Vercel, Axios
+Node.js, Express, PostgreSQL (Neon), Anthropic Claude 3.5 Sonnet, MCP SDK, Vercel, Axios
 
 ## License
 

@@ -59,6 +59,29 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_occurrences_ts 
       ON occurrences(ts_ocorrencia DESC)
     `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS access_logs (
+        id SERIAL PRIMARY KEY,
+        user_name VARCHAR(255),
+        action VARCHAR(100) NOT NULL,
+        success BOOLEAN DEFAULT true,
+        details JSONB,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_access_logs_created_at
+      ON access_logs(created_at DESC)
+    `;
+
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_access_logs_action
+      ON access_logs(action)
+    `;
     
     console.log('Neon database initialized successfully with emergency types and cities');
   } catch (error) {

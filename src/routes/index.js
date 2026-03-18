@@ -8,11 +8,13 @@ const router = express.Router();
 const occurrencesRoutes = require('./occurrences');
 const referenceRoutes = require('./reference');
 const exportRoutes = require('./export');
+const logsRoutes = require('./logs');
 
 // Mount route modules
 router.use('/occurrences', occurrencesRoutes);
 router.use('/', referenceRoutes);
 router.use('/export-db', exportRoutes);
+router.use('/api/log', logsRoutes);
 
 // Root endpoint - serve the web interface
 router.get('/', (req, res) => {

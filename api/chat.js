@@ -1,4 +1,29 @@
 const { toolDefs, buildSystemPrompt } = require('./lib/tools');
+const { neon } = require('@neondatabase/serverless');
+
+function getLogDb() {
+  return neon(process.env.DATABASE_URL);
+}
+
+async function logChatRequest(req, { user_name, userMessage, aiResponse, success, errorMessage }) {
+  try {
+    const sql = getLogDb();
+    const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '';
+    const userAgent = req.headers['user-agent'] || '';
+    const details = {
+      user_message: userMessage,
+      ai_response: aiResponse || null,
+      ...(errorMessage && { error: errorMessage }),
+    };
+
+    await sql`
+      INSERT INTO access_logs (user_name, action, success, details, ip_address, user_agent)
+      VALUES (${user_name || null}, ${'chat_message'}, ${success}, ${JSON.stringify(details)}::jsonb, ${ip}, ${userAgent})
+    `;
+  } catch (err) {
+    console.error('Failed to log chat request:', err);
+  }
+}
 
 const anthropicTools = Object.entries(toolDefs).map(([name, def]) => ({
   name,
@@ -15,7 +40,7 @@ async function callAnthropic(apiKey, messages, lang) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-opus-4-6',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: 2048,
       system: buildSystemPrompt(lang),
       messages,
@@ -50,12 +75,15 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { messages: chatHistory, lang } = req.body || {};
+  const { messages: chatHistory, lang, user_name } = req.body || {};
 
   if (!chatHistory || !Array.isArray(chatHistory) || chatHistory.length === 0) {
     res.status(400).json({ error: 'messages array is required' });
     return;
   }
+
+  const lastUserMsg = [...chatHistory].reverse().find(m => m.role === 'user');
+  const userMessage = lastUserMsg ? (typeof lastUserMsg.content === 'string' ? lastUserMsg.content : JSON.stringify(lastUserMsg.content)) : '';
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -100,10 +128,13 @@ module.exports = async (req, res) => {
       messages.push({ role: 'user', content: toolResults });
     }
 
+    logChatRequest(req, { user_name, userMessage, aiResponse: textResult, success: true });
+
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.end(textResult);
   } catch (error) {
     console.error('Chat error:', error);
+    logChatRequest(req, { user_name, userMessage, success: false, errorMessage: error.message });
     if (!res.headersSent) {
       res.status(500).json({ error: error.message || 'Internal server error' });
     }
