@@ -630,6 +630,119 @@
             transform: none;
         }
 
+        .chat-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .chat-settings-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .chat-settings-btn:hover {
+            background: rgba(255,255,255,0.35);
+        }
+
+        .chat-settings-btn.active {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .chat-settings-panel {
+            background: #f8f9fb;
+            border-bottom: 1px solid #e1e5eb;
+            padding: 14px 16px;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .chat-settings-panel.open {
+            display: flex;
+        }
+
+        .provider-toggle {
+            display: flex;
+            background: #e1e5eb;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .provider-toggle button {
+            flex: 1;
+            padding: 7px 10px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .provider-toggle button.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 6px;
+        }
+
+        .chat-settings-panel label {
+            font-size: 0.75rem;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .chat-settings-panel input[type="text"] {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid #d0d5dd;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-family: monospace;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-settings-panel input[type="text"]:focus {
+            border-color: #667eea;
+        }
+
+        .chat-settings-panel input[type="text"]:disabled {
+            background: #eee;
+            color: #999;
+        }
+
+        .provider-badge {
+            font-size: 0.65rem;
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .provider-badge.anthropic {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+
+        .provider-badge.local {
+            background: #34d399;
+            color: #065f46;
+        }
+
         @media (max-width: 480px) {
             .chat-panel {
                 width: calc(100vw - 48px);
@@ -939,6 +1052,200 @@
         const chatMessages = [];
         let chatWaiting = false;
 
+        // ─── Provider config ─────────────────────────────────────────
+        const CHAT_CONFIG_KEY = 'cbmsc-chat-config';
+        const defaultConfig = { provider: 'anthropic', localUrl: 'http://localhost:1234/v1', localModel: '' };
+
+        function loadChatConfig() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(CHAT_CONFIG_KEY));
+                return { ...defaultConfig, ...saved };
+            } catch (_) {
+                return { ...defaultConfig };
+            }
+        }
+
+        function saveChatConfig(cfg) {
+            localStorage.setItem(CHAT_CONFIG_KEY, JSON.stringify(cfg));
+        }
+
+        let chatConfig = loadChatConfig();
+
+        function setProvider(p) {
+            chatConfig.provider = p;
+            saveChatConfig(chatConfig);
+            updateProviderUI();
+        }
+
+        function updateProviderUI() {
+            const isLocal = chatConfig.provider === 'local';
+            document.getElementById('provAnthropicBtn').classList.toggle('active', !isLocal);
+            document.getElementById('provLocalBtn').classList.toggle('active', isLocal);
+            document.getElementById('localSettings').style.display = isLocal ? 'flex' : 'none';
+            const badge = document.getElementById('providerBadge');
+            badge.textContent = isLocal ? 'Local' : 'Anthropic';
+            badge.className = 'provider-badge ' + (isLocal ? 'local' : 'anthropic');
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('chatSettingsPanel');
+            const btn = document.getElementById('chatSettingsBtn');
+            const isOpen = panel.classList.contains('open');
+            panel.classList.toggle('open', !isOpen);
+            btn.classList.toggle('active', !isOpen);
+        }
+
+        // ─── Tool definitions (OpenAI format, used by local provider) ──
+        const localToolDefs = [
+            {
+                type: 'function',
+                function: {
+                    name: 'count_occurrences',
+                    description: 'Contar ocorrências de emergência em um período, com filtros opcionais por tipo e/ou cidade.',
+                    parameters: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' } }, required: ['start_date', 'end_date'] }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'list_occurrence_types',
+                    description: 'Listar todos os tipos de emergência com contagem.',
+                    parameters: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' } } }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'get_occurrences',
+                    description: 'Buscar registros individuais de ocorrências com detalhes.',
+                    parameters: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' }, limit: { type: 'number', description: 'Máximo de registros (padrão: 50, máximo: 200)' } }, required: ['start_date', 'end_date'] }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'best_time_analysis',
+                    description: 'Analisar distribuição de ocorrências por dia da semana e hora do dia.',
+                    parameters: { type: 'object', properties: { start_date: { type: 'string', description: 'Data início (YYYY-MM-DD)' }, end_date: { type: 'string', description: 'Data fim (YYYY-MM-DD)' }, emergency_type: { type: 'string', description: 'Tipo de emergência (busca parcial)' }, city: { type: 'string', description: 'Cidade (busca parcial)' } } }
+                }
+            },
+            {
+                type: 'function',
+                function: {
+                    name: 'list_cities',
+                    description: 'Listar todas as cidades monitoradas com contagem de ocorrências.',
+                    parameters: { type: 'object', properties: {} }
+                }
+            }
+        ];
+
+        function buildLocalSystemPrompt() {
+            const today = new Date().toISOString().split('T')[0];
+            return `Você é o assistente do CBM SC Monitor, um sistema que monitora ocorrências de emergência do Corpo de Bombeiros Militar de Santa Catarina.
+
+Você tem acesso a ferramentas para consultar o banco de dados de ocorrências. SEMPRE use as ferramentas para buscar dados reais antes de responder — nunca invente números ou informações.
+
+Data de hoje: ${today}.
+
+Tipos de emergência monitorados: Acidente de Trânsito, Atendimento Pré-Hospitalar, Auxílios/Apoios, Averiguação/Corte de Árvore, Averiguação/Manejo de Inseto, Ação Preventiva Social, Ações Preventivas, Diversos, Incêndio, Produtos Perigosos, Risco Potencial, Salvamento/Busca/Resgate.
+
+Responda sempre em Português (Brasil), a menos que o usuário escreva em outro idioma.
+Seja conciso mas informativo. Use formatação markdown quando apropriado (listas, negrito, tabelas).`;
+        }
+
+        // ─── Local LLM calling ──────────────────────────────────────
+        async function callLocalLLM(messages) {
+            const url = chatConfig.localUrl.replace(/\/+$/, '') + '/chat/completions';
+            const body = {
+                messages: [
+                    { role: 'system', content: buildLocalSystemPrompt() },
+                    ...messages
+                ],
+                tools: localToolDefs,
+                tool_choice: 'auto',
+                max_tokens: 2048,
+            };
+            if (chatConfig.localModel) {
+                body.model = chatConfig.localModel;
+            }
+
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error(`Local LLM ${resp.status}: ${text}`);
+            }
+            return resp.json();
+        }
+
+        async function executeToolCalls(toolCalls) {
+            const calls = toolCalls.map(tc => ({
+                name: tc.function.name,
+                args: JSON.parse(tc.function.arguments || '{}'),
+            }));
+
+            const res = await fetch(API_BASE + '/api/chat-tools', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ calls }),
+            });
+
+            if (!res.ok) {
+                throw new Error('Erro ao executar ferramentas no servidor');
+            }
+
+            const data = await res.json();
+            return data.results;
+        }
+
+        async function sendChatLocal(userText) {
+            const openaiMessages = chatMessages.slice(-20).map(m => ({
+                role: m.role,
+                content: m.content,
+            }));
+
+            let textResult = '';
+
+            for (let step = 0; step < 5; step++) {
+                const response = await callLocalLLM(openaiMessages);
+                const choice = response.choices && response.choices[0];
+                if (!choice) break;
+
+                const msg = choice.message;
+                const content = msg.content || '';
+                const toolCalls = msg.tool_calls || [];
+
+                if (content) {
+                    textResult += content;
+                }
+
+                if (choice.finish_reason !== 'tool_calls' && toolCalls.length === 0) {
+                    break;
+                }
+
+                openaiMessages.push(msg);
+
+                const results = await executeToolCalls(toolCalls);
+
+                for (let i = 0; i < toolCalls.length; i++) {
+                    const tc = toolCalls[i];
+                    const r = results[i];
+                    openaiMessages.push({
+                        role: 'tool',
+                        tool_call_id: tc.id,
+                        content: JSON.stringify(r.result != null ? r.result : { error: r.error }),
+                    });
+                }
+            }
+
+            return textResult;
+        }
+
+        // ─── UI helpers ──────────────────────────────────────────────
         function toggleChat() {
             const panel = document.getElementById('chatPanel');
             const toggle = document.getElementById('chatToggle');
@@ -993,6 +1300,7 @@
             sendChat();
         }
 
+        // ─── Send (dispatches to Anthropic or Local) ─────────────────
         async function sendChat() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
@@ -1011,41 +1319,50 @@
             showTyping();
 
             try {
-                const res = await fetch(API_BASE + '/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: chatMessages }),
-                });
-
-                hideTyping();
-
-                if (!res.ok) {
-                    let errMsg = 'Erro ao se conectar com o assistente';
-                    try {
-                        const err = await res.json();
-                        errMsg = err.error || errMsg;
-                    } catch (_) {}
-                    const errEl = appendChat('assistant', '');
-                    errEl.className = 'chat-message error';
-                    errEl.querySelector('.message-content').textContent = errMsg;
-                    return;
-                }
-
-                const msgEl = appendChat('assistant', '');
-                const contentEl = msgEl.querySelector('.message-content');
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let fullText = '';
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    fullText += decoder.decode(value, { stream: true });
-                    contentEl.innerHTML = marked.parse(fullText);
+                if (chatConfig.provider === 'local') {
+                    const fullText = await sendChatLocal(text);
+                    hideTyping();
+                    const msgEl = appendChat('assistant', '');
+                    msgEl.querySelector('.message-content').innerHTML = marked.parse(fullText);
                     scrollChat();
-                }
+                    chatMessages.push({ role: 'assistant', content: fullText });
+                } else {
+                    const res = await fetch(API_BASE + '/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messages: chatMessages }),
+                    });
 
-                chatMessages.push({ role: 'assistant', content: fullText });
+                    hideTyping();
+
+                    if (!res.ok) {
+                        let errMsg = 'Erro ao se conectar com o assistente';
+                        try {
+                            const err = await res.json();
+                            errMsg = err.error || errMsg;
+                        } catch (_) {}
+                        const errEl = appendChat('assistant', '');
+                        errEl.className = 'chat-message error';
+                        errEl.querySelector('.message-content').textContent = errMsg;
+                        return;
+                    }
+
+                    const msgEl = appendChat('assistant', '');
+                    const contentEl = msgEl.querySelector('.message-content');
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let fullText = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        fullText += decoder.decode(value, { stream: true });
+                        contentEl.innerHTML = marked.parse(fullText);
+                        scrollChat();
+                    }
+
+                    chatMessages.push({ role: 'assistant', content: fullText });
+                }
             } catch (err) {
                 hideTyping();
                 const errEl = appendChat('assistant', '');
@@ -1059,6 +1376,7 @@
             }
         }
 
+        // ─── Init chat listeners ─────────────────────────────────────
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('chatToggle').addEventListener('click', toggleChat);
             document.getElementById('chatClose').addEventListener('click', toggleChat);
@@ -1069,6 +1387,23 @@
                     sendChat();
                 }
             });
+
+            document.getElementById('chatSettingsBtn').addEventListener('click', toggleSettings);
+
+            const urlInput = document.getElementById('localUrlInput');
+            const modelInput = document.getElementById('localModelInput');
+            urlInput.value = chatConfig.localUrl;
+            modelInput.value = chatConfig.localModel;
+            urlInput.addEventListener('change', function() {
+                chatConfig.localUrl = this.value.trim() || defaultConfig.localUrl;
+                saveChatConfig(chatConfig);
+            });
+            modelInput.addEventListener('change', function() {
+                chatConfig.localModel = this.value.trim();
+                saveChatConfig(chatConfig);
+            });
+
+            updateProviderUI();
         });
     </script>
 
@@ -1076,8 +1411,27 @@
     <div class="chat-widget">
         <div id="chatPanel" class="chat-panel hidden">
             <div class="chat-header">
-                <h3><i class="fas fa-robot"></i>&nbsp; Assistente CBM SC</h3>
-                <button id="chatClose" class="chat-close">&times;</button>
+                <h3><i class="fas fa-robot"></i>&nbsp; Assistente CBM SC<span id="providerBadge" class="provider-badge anthropic">Anthropic</span></h3>
+                <div class="chat-header-actions">
+                    <button id="chatSettingsBtn" class="chat-settings-btn" title="Configurações"><i class="fas fa-cog"></i></button>
+                    <button id="chatClose" class="chat-close">&times;</button>
+                </div>
+            </div>
+            <div id="chatSettingsPanel" class="chat-settings-panel">
+                <div class="provider-toggle">
+                    <button id="provAnthropicBtn" class="active" onclick="setProvider('anthropic')">Anthropic</button>
+                    <button id="provLocalBtn" onclick="setProvider('local')">Modelo Local</button>
+                </div>
+                <div id="localSettings" style="display:none;flex-direction:column;gap:8px;">
+                    <div>
+                        <label>URL do modelo local</label>
+                        <input type="text" id="localUrlInput" placeholder="http://localhost:1234/v1" />
+                    </div>
+                    <div>
+                        <label>Nome do modelo (opcional)</label>
+                        <input type="text" id="localModelInput" placeholder="Deixe vazio para usar o padrão" />
+                    </div>
+                </div>
             </div>
             <div id="chatMessages" class="chat-messages">
                 <div class="chat-message assistant">
