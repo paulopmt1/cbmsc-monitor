@@ -6,7 +6,7 @@ const anthropicTools = Object.entries(toolDefs).map(([name, def]) => ({
   input_schema: def.schema,
 }));
 
-async function callAnthropic(apiKey, messages) {
+async function callAnthropic(apiKey, messages, lang) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -17,7 +17,7 @@ async function callAnthropic(apiKey, messages) {
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
-      system: buildSystemPrompt(),
+      system: buildSystemPrompt(lang),
       messages,
       tools: anthropicTools,
     }),
@@ -50,7 +50,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const { messages: chatHistory } = req.body || {};
+  const { messages: chatHistory, lang } = req.body || {};
 
   if (!chatHistory || !Array.isArray(chatHistory) || chatHistory.length === 0) {
     res.status(400).json({ error: 'messages array is required' });
@@ -59,6 +59,7 @@ module.exports = async (req, res) => {
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    const chatLang = lang === 'en' ? 'en' : 'pt';
     const messages = chatHistory.slice(-20).map((m) => ({
       role: m.role,
       content: m.content,
@@ -67,7 +68,7 @@ module.exports = async (req, res) => {
     let textResult = '';
 
     for (let step = 0; step < 5; step++) {
-      const response = await callAnthropic(apiKey, messages);
+      const response = await callAnthropic(apiKey, messages, chatLang);
 
       const textBlocks = response.content.filter((b) => b.type === 'text');
       const toolBlocks = response.content.filter((b) => b.type === 'tool_use');
