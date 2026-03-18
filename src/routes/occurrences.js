@@ -2,6 +2,7 @@ const express = require('express');
 const axios = require('axios');
 const { sql } = require('../config/database');
 const { emergencyTypes, cities, apiRequestData } = require('../models/data');
+const { parseTimestamp } = require('../utils/parseTimestamp');
 
 const router = express.Router();
 
@@ -58,10 +59,7 @@ router.get('/readNewOccurrences', async (req, res) => {
           const latitude = occurrence.lat_logradouro ? parseFloat(occurrence.lat_logradouro) : null;
           const longitude = occurrence.long_logradouro ? parseFloat(occurrence.long_logradouro) : null;
           
-          const rawTs = occurrence.ts_ocorrencia;
-          const occurrenceTimestamp = rawTs
-            ? new Date(rawTs.replace(' ', 'T') + '-03:00')
-            : new Date();
+          const occurrenceTimestamp = parseTimestamp(occurrence.ts_ocorrencia);
           
           // Save the object to database with foreign keys, GPS coordinates, and timestamp
           await sql`

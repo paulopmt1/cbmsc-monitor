@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server-neon.js",
     "dev": "nodemon server-neon.js",
-    "proxy": "node local-proxy.js"
+    "proxy": "node local-proxy.js",
+    "test": "jest"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",
@@ -21,6 +22,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "jest": "^30.3.0",
     "nodemon": "^3.0.1"
   },
   "keywords": [],
