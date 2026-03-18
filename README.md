@@ -2,6 +2,8 @@
 
 A web application for monitoring emergency occurrences from the Santa Catarina Fire Department (CBM-SC). Fetches, stores, and visualizes emergency incidents across Santa Catarina with an interactive dashboard and AI-powered chat.
 
+<img width="1714" height="1338" alt="image" src="https://github.com/user-attachments/assets/6368fe3a-3927-4011-9a18-35ef3733c2fd" />
+
 ## Features
 
 - **Interactive Dashboard**: Occurrence cards with filters by city and emergency type, stats overview, infinite scroll, and GPS links to Google Maps
@@ -120,7 +122,10 @@ npm run proxy
 # Options: --port <port> --target <url>
 ```
 
-Configure the local URL in the chat widget settings panel.
+Configure the local URL in the chat widget settings panel:
+
+<img width="494" height="346" alt="image" src="https://github.com/user-attachments/assets/c46f56ba-29ad-4756-8fdf-baab0f778f51" />
+
 
 ## Deployment (Vercel)
 
