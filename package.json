@@ -5,7 +5,8 @@
   "main": "server-neon.js",
   "scripts": {
     "start": "node server-neon.js",
-    "dev": "nodemon server-neon.js"
+    "dev": "nodemon server-neon.js",
+    "proxy": "node local-proxy.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",

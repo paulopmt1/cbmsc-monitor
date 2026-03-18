@@ -1054,7 +1054,7 @@
 
         // ─── Provider config ─────────────────────────────────────────
         const CHAT_CONFIG_KEY = 'cbmsc-chat-config';
-        const defaultConfig = { provider: 'anthropic', localUrl: 'http://localhost:1234/v1', localModel: '' };
+        const defaultConfig = { provider: 'anthropic', localUrl: 'http://localhost:5001/v1', localModel: '' };
 
         function loadChatConfig() {
             try {
@@ -1169,11 +1169,20 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
                 body.model = chatConfig.localModel;
             }
 
-            const resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
+            let resp;
+            try {
+                resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+            } catch (networkErr) {
+                throw new Error(
+                    'Não foi possível conectar ao modelo local. ' +
+                    'Verifique se o proxy está rodando (node local-proxy.js) ' +
+                    'e se o LM Studio está ativo em localhost:1234.'
+                );
+            }
 
             if (!resp.ok) {
                 const text = await resp.text();
@@ -1425,11 +1434,15 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
                 <div id="localSettings" style="display:none;flex-direction:column;gap:8px;">
                     <div>
                         <label>URL do modelo local</label>
-                        <input type="text" id="localUrlInput" placeholder="http://localhost:1234/v1" />
+                        <input type="text" id="localUrlInput" placeholder="http://localhost:5001/v1" />
                     </div>
                     <div>
                         <label>Nome do modelo (opcional)</label>
                         <input type="text" id="localModelInput" placeholder="Deixe vazio para usar o padrão" />
+                    </div>
+                    <div style="font-size:0.7rem;color:#888;line-height:1.4;margin-top:2px;">
+                        Requer o proxy local: <code style="background:#e8e8e8;padding:1px 4px;border-radius:3px;font-size:0.68rem;">node local-proxy.js</code><br>
+                        (encaminha para LM Studio com headers CORS)
                     </div>
                 </div>
             </div>
