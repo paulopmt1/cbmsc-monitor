@@ -49,10 +49,31 @@
             font-size: 1.1rem;
         }
 
-        .lang-selector {
+        .header-actions {
             position: absolute;
             top: 16px;
             right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .gh-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            color: #666;
+            font-size: 1.2rem;
+            transition: color 0.2s;
+        }
+
+        .gh-link:hover {
+            color: #764ba2;
+        }
+
+        .lang-selector {
             display: flex;
             background: #e1e5eb;
             border-radius: 6px;
@@ -776,29 +797,6 @@
             color: #065f46;
         }
 
-        .site-footer {
-            text-align: center;
-            padding: 24px 20px;
-            margin-top: 40px;
-            color: #7f8c8d;
-            font-size: 0.9rem;
-        }
-
-        .site-footer a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 600;
-            transition: color 0.2s;
-        }
-
-        .site-footer a:hover {
-            color: #764ba2;
-        }
-
-        .site-footer i {
-            vertical-align: middle;
-        }
-
         @media (max-width: 480px) {
             .chat-panel {
                 width: calc(100vw - 48px);
@@ -812,9 +810,14 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="lang-selector">
-                <button class="lang-btn active" id="langPt" onclick="setLang('pt')">PT</button>
-                <button class="lang-btn" id="langEn" onclick="setLang('en')">EN</button>
+            <div class="header-actions">
+                <a class="gh-link" href="https://github.com/paulopmt1/cbmsc-monitor" target="_blank" rel="noopener noreferrer" title="GitHub">
+                    <i class="fa-brands fa-github"></i>
+                </a>
+                <div class="lang-selector">
+                    <button class="lang-btn active" id="langPt" onclick="setLang('pt')">PT</button>
+                    <button class="lang-btn" id="langEn" onclick="setLang('en')">EN</button>
+                </div>
             </div>
             <h1>🚨 CBM SC Monitor</h1>
             <p data-i18n="headerSubtitle">Monitoramento de Ocorrências do Corpo de Bombeiros de Santa Catarina</p>
@@ -865,15 +868,6 @@
         </div>
     </div>
 
-    <footer class="site-footer">
-        <p>
-            <span data-i18n="footerCredit">Desenvolvido por Paulo Tauffenbach</span> &mdash;
-            <a href="https://github.com/paulopmt1/cbmsc-monitor" target="_blank" rel="noopener noreferrer">
-                <i class="fa-brands fa-github"></i> GitHub
-            </a>
-        </p>
-    </footer>
-
     <script>
         // ─── i18n ────────────────────────────────────────────────────
         const LANG_KEY = 'cbmsc-lang';
@@ -921,7 +915,6 @@
                 chatErrorConnection: 'Erro de conexão: ',
                 chatErrorLocalConnect: 'Não foi possível conectar ao modelo local. Verifique se o proxy está rodando (node local-proxy.js) e se o LM Studio está ativo em localhost:1234.',
                 chatErrorTools: 'Erro ao executar ferramentas no servidor',
-                footerCredit: 'Desenvolvido por Paulo Tauffenbach',
             },
             en: {
                 pageTitle: 'CBM SC Monitor - Occurrences',
@@ -964,7 +957,6 @@
                 chatErrorConnection: 'Connection error: ',
                 chatErrorLocalConnect: 'Could not connect to the local model. Make sure the proxy is running (node local-proxy.js) and LM Studio is active on localhost:1234.',
                 chatErrorTools: 'Error executing tools on server',
-                footerCredit: 'Developed by Paulo Tauffenbach',
             }
         };
 
