@@ -990,6 +990,18 @@
             const proxyNote = document.getElementById('chatProxyNote');
             if (proxyNote) proxyNote.innerHTML = t('chatProxyNote');
 
+            const emergencyFilter = document.getElementById('emergencyFilter');
+            if (emergencyFilter) {
+                Array.from(emergencyFilter.options).forEach(opt => {
+                    if (opt.value) opt.textContent = translateEmergencyType(opt.value);
+                });
+            }
+
+            if (loadedOccurrences.length > 0) {
+                renderInitial();
+                setupInfiniteScroll();
+            }
+
             renderChatGreeting();
         }
 
@@ -1021,6 +1033,28 @@
             'Risco Potencial': { icon: '⚠️', color: '#f1c40f' },
             'Salvamento/Busca/Resgate': { icon: '🆘', color: '#e74c3c' }
         };
+
+        const emergencyTypeTranslations = {
+            'Acidente de Trânsito': 'Traffic Accident',
+            'Atendimento Pré-Hospitalar': 'Pre-Hospital Care',
+            'Auxílios/Apoios': 'Aid/Support',
+            'Averiguação/Corte de Árvore': 'Tree Inspection/Cutting',
+            'Averiguação/Manejo de Inseto': 'Insect Inspection/Management',
+            'Ação Preventiva Social': 'Social Preventive Action',
+            'Ações Preventivas': 'Preventive Actions',
+            'Diversos': 'Miscellaneous',
+            'Incêndio': 'Fire',
+            'Produtos Perigosos': 'Hazardous Materials',
+            'Risco Potencial': 'Potential Risk',
+            'Salvamento/Busca/Resgate': 'Rescue/Search/Recovery',
+        };
+
+        function translateEmergencyType(ptName) {
+            if (currentLang === 'en' && emergencyTypeTranslations[ptName]) {
+                return emergencyTypeTranslations[ptName];
+            }
+            return ptName;
+        }
 
         const API_BASE = window.location.origin;
         const PAGE_SIZE = 50;
@@ -1094,7 +1128,7 @@
             emergencyTypes.forEach(type => {
                 const opt = document.createElement('option');
                 opt.value = type.title;
-                opt.textContent = type.title;
+                opt.textContent = translateEmergencyType(type.title);
                 emergencyFilter.appendChild(opt);
             });
 
@@ -1134,7 +1168,7 @@
                 <div class="occurrence-header">
                     <div class="emergency-icon" style="background-color:${info.color}">${info.icon}</div>
                     <div class="emergency-info">
-                        <h3>${occ.emergency_type_title}</h3>
+                        <h3>${translateEmergencyType(occ.emergency_type_title)}</h3>
                         <div class="city">📍 ${occ.city_name}</div>
                     </div>
                 </div>
@@ -1350,9 +1384,23 @@ You have access to tools to query the occurrences database. ALWAYS use the tools
 
 Today's date: ${today}.
 
-Monitored emergency types: Acidente de Trânsito, Atendimento Pré-Hospitalar, Auxílios/Apoios, Averiguação/Corte de Árvore, Averiguação/Manejo de Inseto, Ação Preventiva Social, Ações Preventivas, Diversos, Incêndio, Produtos Perigosos, Risco Potencial, Salvamento/Busca/Resgate.
+Monitored emergency types (English name / Portuguese database name):
+- Traffic Accident / Acidente de Trânsito
+- Pre-Hospital Care / Atendimento Pré-Hospitalar
+- Aid/Support / Auxílios/Apoios
+- Tree Inspection/Cutting / Averiguação/Corte de Árvore
+- Insect Inspection/Management / Averiguação/Manejo de Inseto
+- Social Preventive Action / Ação Preventiva Social
+- Preventive Actions / Ações Preventivas
+- Miscellaneous / Diversos
+- Fire / Incêndio
+- Hazardous Materials / Produtos Perigosos
+- Potential Risk / Risco Potencial
+- Rescue/Search/Recovery / Salvamento/Busca/Resgate
 
-Always respond in English.
+IMPORTANT: When calling tools, always use the PORTUGUESE name for the emergency_type parameter (the database stores names in Portuguese). For example, to search for fires, use emergency_type: "Incêndio", not "Fire".
+
+Always respond in English, using the English names for emergency types.
 Be concise but informative. Use markdown formatting when appropriate (lists, bold, tables).`;
             }
             return `Você é o assistente do CBM SC Monitor, um sistema que monitora ocorrências de emergência do Corpo de Bombeiros Militar de Santa Catarina.

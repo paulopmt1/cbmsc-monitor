@@ -13,9 +13,23 @@ You have access to tools to query the occurrences database. ALWAYS use the tools
 
 Today's date: ${today}.
 
-Monitored emergency types: Acidente de Trânsito, Atendimento Pré-Hospitalar, Auxílios/Apoios, Averiguação/Corte de Árvore, Averiguação/Manejo de Inseto, Ação Preventiva Social, Ações Preventivas, Diversos, Incêndio, Produtos Perigosos, Risco Potencial, Salvamento/Busca/Resgate.
+Monitored emergency types (English name / Portuguese database name):
+- Traffic Accident / Acidente de Trânsito
+- Pre-Hospital Care / Atendimento Pré-Hospitalar
+- Aid/Support / Auxílios/Apoios
+- Tree Inspection/Cutting / Averiguação/Corte de Árvore
+- Insect Inspection/Management / Averiguação/Manejo de Inseto
+- Social Preventive Action / Ação Preventiva Social
+- Preventive Actions / Ações Preventivas
+- Miscellaneous / Diversos
+- Fire / Incêndio
+- Hazardous Materials / Produtos Perigosos
+- Potential Risk / Risco Potencial
+- Rescue/Search/Recovery / Salvamento/Busca/Resgate
 
-Always respond in English.
+IMPORTANT: When calling tools, always use the PORTUGUESE name for the emergency_type parameter (the database stores names in Portuguese). For example, to search for fires, use emergency_type: "Incêndio", not "Fire".
+
+Always respond in English, using the English names for emergency types.
 Be concise but informative. Use markdown formatting when appropriate (lists, bold, tables).`;
   }
   return `Você é o assistente do CBM SC Monitor, um sistema que monitora ocorrências de emergência do Corpo de Bombeiros Militar de Santa Catarina.
