@@ -1,211 +1,90 @@
 # CBM SC Monitor
 
-A Node.js API for monitoring emergency occurrences from the Santa Catarina Fire Department (CBM-SC). This application fetches, stores, and provides analytics for emergency incidents across Santa Catarina.
+A web application for monitoring emergency occurrences from the Santa Catarina Fire Department (CBM-SC). Fetches, stores, and visualizes emergency incidents across Santa Catarina with an interactive dashboard and AI-powered chat.
 
-## 🚀 Features
+## Features
 
-- **Real-time Data Fetching**: Fetch emergency occurrences from CBM-SC API
-- **Persistent Storage**: Store and query occurrence data with PostgreSQL (Neon)
-- **Advanced Search**: Search by emergency type, city, and other criteria
-- **Analytics**: Get comprehensive statistics and analytics
-- **RESTful API**: Clean, well-documented API endpoints
-- **Modular Architecture**: Organized, maintainable codebase
+- **Interactive Dashboard**: Occurrence cards with filters by city and emergency type, stats overview, infinite scroll, and GPS links to Google Maps
+- **AI Chat**: Floating chat widget powered by Anthropic Claude Haiku (or local LLM via LM Studio) that can query occurrence data using tool calls
+- **MCP Server**: [Model Context Protocol](https://modelcontextprotocol.io/) integration letting AI assistants like Cursor query the data directly
+- **Internationalization**: Full PT-BR and EN support
+- **RESTful API**: Endpoints for occurrences, stats, reference data, and database export
+- **Real-time Ingestion**: Fetch and store new occurrences from the CBM-SC public API on demand
+- **Serverless Deployment**: Runs on Vercel with Neon PostgreSQL
 
-## 📋 Quick Start
+## Quick Start
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- npm or yarn
-- Neon Database account (for production)
+- Node.js v14+
+- Neon Database account ([neon.tech](https://neon.tech))
 
-### Installation & Setup
+### Setup
 
-1. **Clone and install**:
 ```bash
 git clone <your-repo-url>
 cd cbmsc-monitor
 npm install
-```
-
-2. **Environment setup**:
-```bash
 cp env.example .env
-# Add your Neon DATABASE_URL to .env
-```
-
-3. **Start development server**:
-```bash
-# Run organized version (recommended)
+# Add your DATABASE_URL to .env
 node src/server.js
-
-# Or run original version
-node server-neon.js
 ```
 
-The server will run on `http://localhost:3000`
-
-## 🏗️ Project Architecture
-
-### Organized Code Structure (Recommended)
-
-The codebase has been reorganized into a modular structure for better maintainability:
-
-```
-src/
-├── config/
-│   └── database.js          # Database connection and initialization
-├── middleware/
-│   ├── cors.js             # CORS middleware
-│   └── static.js           # Static file serving middleware
-├── models/
-│   └── data.js             # Data models and constants
-├── routes/
-│   ├── index.js            # Main routes index
-│   ├── occurrences.js      # Occurrence-related routes
-│   └── reference.js        # Reference data routes
-├── utils/
-│   └── initData.js         # Database initialization utilities
-├── app.js                  # Main Express application setup
-└── server.js               # Server entry point
-```
-
-### Benefits of This Organization
-
-1. **Separation of Concerns**: Each file has a specific responsibility
-2. **Maintainability**: Easier to find and modify specific functionality
-3. **Scalability**: Easy to add new routes, middleware, or utilities
-4. **Testability**: Individual modules can be tested in isolation
-5. **Readability**: Code is organized logically and easy to navigate
-
-## 🔌 API Endpoints
-
-### Core Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | Server status and available endpoints |
-| `GET` | `/api` | API information |
-| `GET` | `/readOccurrences` | Fetch and store occurrences from CBM-SC API |
-
-### Occurrences Management
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/occurrences` | Get all occurrences (with pagination) |
-| `GET` | `/occurrences/:id` | Get specific occurrence by ID |
-| `GET` | `/occurrences/emergency/:type` | Search by emergency type |
-| `GET` | `/occurrences/city/:city` | Search by city |
-| `GET` | `/occurrences/stats` | Get comprehensive statistics |
-| `DELETE` | `/occurrences/:id` | Delete occurrence by ID |
-
-### Reference Data
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/emergency-types` | Get all emergency types |
-| `GET` | `/cities` | Get all cities |
-
-### Query Parameters
-
-- `limit`: Number of results (default: 50)
-- `offset`: Pagination offset (default: 0)
-
-## 🗄️ Database Setup
-
-### Neon Database (Recommended)
-
-1. **Create a Neon account** at [https://neon.tech](https://neon.tech)
-2. **Create a new project** in the Neon console
-3. **Get your connection string** from the project dashboard
-4. **Add to environment variables**:
-   ```
-   DATABASE_URL=postgresql://username:password@ep-xxx-xxx-xxx.region.aws.neon.tech/dbname?sslmode=require
-   ```
-
-### Database Schema
-
-The application automatically creates these tables:
-- `tp_emergencia`: Emergency types
-- `cities`: City information
-- `occurrences`: Main occurrence data with foreign keys
-
-## 🚀 Deployment
-
-### Vercel Deployment
-
-1. **Install Vercel CLI**:
-```bash
-npm i -g vercel
-```
-
-2. **Deploy**:
-```bash
-vercel login
-vercel
-vercel --prod
-```
-
-3. **Add environment variables** in Vercel dashboard:
-   - `DATABASE_URL`: Your Neon connection string
+The server runs on `http://localhost:3000`.
 
 ### Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `DATABASE_URL` | Neon Database connection string | Yes |
+| `DATABASE_URL` | Neon PostgreSQL connection string | Yes |
+| `ANTHROPIC_API_KEY` | Anthropic API key (for AI chat) | No |
 | `PORT` | Server port (default: 3000) | No |
 
-## 📊 Usage Examples
+## API Endpoints
 
-### Fetch New Occurrences
-```bash
-curl https://your-app.vercel.app/readOccurrences
-```
+### Occurrences
 
-### Get All Occurrences with Pagination
-```bash
-curl "https://your-app.vercel.app/occurrences?limit=10&offset=0"
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/occurrences` | List occurrences (last 30 days). Filters: `?city=`, `?emergency_type=`, `?limit=`, `?offset=` |
+| `GET` | `/occurrences/:id` | Get occurrence by ID |
+| `GET` | `/occurrences/emergency/:type` | Search by emergency type |
+| `GET` | `/occurrences/city/:city` | Search by city |
+| `GET` | `/occurrences/stats` | Stats breakdown by type, city, and date |
+| `GET` | `/occurrences/readNewOccurrences` | Fetch new occurrences from CBM-SC API |
+| `DELETE` | `/occurrences/:id` | Delete occurrence |
 
-### Search by Emergency Type
-```bash
-curl https://your-app.vercel.app/occurrences/emergency/incendio
-```
+### Reference & Export
 
-### Get Statistics
-```bash
-curl https://your-app.vercel.app/occurrences/stats
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/emergency-types` | List all emergency types |
+| `GET` | `/cities` | List all cities |
+| `GET` | `/export-db` | MySQL-compatible SQL dump |
 
-### Get Emergency Types
-```bash
-curl https://your-app.vercel.app/emergency-types
-```
+### AI Chat
 
-## 🤖 MCP Server (AI Integration)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/chat` | Chat with AI assistant (body: `{ messages, lang }`) |
+| `POST` | `/api/chat-tools` | Execute tool calls (body: `{ calls: [{ name, args }] }`) |
 
-This project includes an [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that lets AI assistants like Cursor query occurrence data directly.
+## MCP Server (AI Integration)
 
-### Available Tools
+The MCP server lets AI assistants query occurrence data directly. Available tools:
 
 | Tool | Description |
 |------|-------------|
-| `count_occurrences` | Count occurrences in a date range, with optional emergency type and city filters. Returns total + breakdown by type. |
-| `list_occurrence_types` | List all emergency types with occurrence counts, optionally scoped to a period. |
-| `get_occurrences` | Fetch actual occurrence records with type, city, timestamp, and coordinates. |
-| `best_time_analysis` | Analyze distribution by day-of-week and hour-of-day to find the best time to witness occurrences. |
-| `list_cities` | List all monitored cities with their total occurrence counts. |
-| `fetch_new_occurrences` | Trigger a fresh pull of occurrences from the CBM-SC public API. |
+| `count_occurrences` | Count occurrences in a date range with optional filters |
+| `list_occurrence_types` | List emergency types with counts |
+| `get_occurrences` | Fetch occurrence records with details |
+| `best_time_analysis` | Day/hour distribution analysis |
+| `list_cities` | List monitored cities |
+| `fetch_new_occurrences` | Pull new occurrences from CBM-SC API |
 
 ### Setup in Cursor
 
-There are two ways to connect: **remote** (recommended, no local setup) or **local**.
+**Remote (recommended)** — no local setup needed:
 
-#### Option A: Remote (via Vercel)
-
-The MCP server is deployed alongside the web app at `https://cbmsc-monitor.vercel.app/mcp`. No local installation needed.
-
-Create `.cursor/mcp.json` in any Cursor workspace:
 ```json
 {
   "mcpServers": {
@@ -216,15 +95,8 @@ Create `.cursor/mcp.json` in any Cursor workspace:
 }
 ```
 
-#### Option B: Local (stdio)
+**Local (stdio)**:
 
-1. **Install dependencies**:
-```bash
-cd mcp-server
-npm install
-```
-
-2. Create `.cursor/mcp.json` in the project root:
 ```json
 {
   "mcpServers": {
@@ -236,99 +108,57 @@ npm install
 }
 ```
 
-The local server reads `DATABASE_URL` from the project's `.env` file automatically.
+Save as `.cursor/mcp.json` and restart Cursor.
 
-After configuring either option, **restart Cursor** (or reload the window) so it picks up the new MCP server.
+## Local LLM Support
 
-### Example Questions You Can Ask
-
-- "How many occurrences happened last month?"
-- "What are the most common emergency types in Videira?"
-- "What's the best day and time to go if I want to see more occurrences?"
-- "Show me all fire incidents in Joaçaba this year"
-- "Fetch new occurrences from the API"
-
-### MCP Server Structure
-
-```
-mcp-server/
-├── server.js          # Shared tool registration (used by both transports)
-├── index.js           # Local entry point (stdio transport)
-├── db.js              # Shared Neon PostgreSQL connection
-├── package.json
-└── tools/
-    ├── analysis.js    # best_time_analysis
-    ├── cities.js      # list_cities
-    ├── count.js       # count_occurrences
-    ├── fetch.js       # fetch_new_occurrences
-    ├── occurrences.js # get_occurrences
-    └── types.js       # list_occurrence_types
-
-api/
-└── mcp.js             # Vercel serverless function (Streamable HTTP transport)
-```
-
-## 🛠️ Development
-
-### Adding New Features
-
-1. **New Routes**: Add to appropriate route file in `src/routes/`
-2. **New Middleware**: Add to `src/middleware/`
-3. **New Models**: Add to `src/models/`
-4. **New Utilities**: Add to `src/utils/`
-5. **Database Changes**: Modify `src/config/database.js`
-
-### Available Scripts
+The chat widget supports local LLMs via LM Studio. A CORS proxy is included:
 
 ```bash
-# Start development server (organized version)
-node src/server.js
-
-# Start original server
-node server-neon.js
-
-# Start with nodemon (if installed)
-nodemon src/server.js
+npm run proxy
+# Proxies localhost:5001 → localhost:1234 (LM Studio default)
+# Options: --port <port> --target <url>
 ```
 
-## 🏛️ Emergency Types
+Configure the local URL in the chat widget settings panel.
 
-The system supports these emergency types:
-- Acidente de Trânsito (Traffic Accident)
-- Atendimento Pré-Hospitalar (Pre-Hospital Care)
-- Auxílios/Apoios (Aid/Support)
-- Averiguação/Corte de Árvore (Tree Investigation/Cutting)
-- Averiguação/Manejo de Inseto (Insect Investigation/Management)
-- Ação Preventiva Social (Social Preventive Action)
-- Ações Preventivas (Preventive Actions)
-- Diversos (Various)
-- Incêndio (Fire)
-- Produtos Perigosos (Dangerous Products)
-- Risco Potencial (Potential Risk)
-- Salvamento/Busca/Resgate (Rescue/Search/Rescue)
+## Deployment (Vercel)
 
-## 🛡️ Important Notes
+```bash
+npm i -g vercel
+vercel --prod
+```
 
-- **Persistent Data**: Neon Database provides persistent PostgreSQL storage
-- **Serverless Optimized**: Uses `@neondatabase/serverless` driver for Vercel
-- **Free Tier**: Neon offers 3GB storage and 10GB transfer per month
-- **Automatic Scaling**: Neon scales based on usage
-- **Data Integrity**: Foreign key relationships ensure data consistency
+Add `DATABASE_URL` and `ANTHROPIC_API_KEY` in the Vercel dashboard.
 
-## 🛠️ Technologies Used
+## Project Structure
 
-- **Node.js** - Runtime environment
-- **Express.js** - Web framework
-- **PostgreSQL** - Database (via Neon)
-- **Axios** - HTTP client for API calls
-- **Vercel** - Deployment platform
-- **@neondatabase/serverless** - Serverless-optimized database driver
-- **@modelcontextprotocol/sdk** - MCP server for AI assistant integration
+```
+src/                    # Express app (modular structure)
+├── config/database.js  # DB connection and schema init
+├── routes/             # occurrences, reference, export
+├── middleware/          # CORS, static files
+├── models/data.js      # Constants and seed data
+└── server.js           # Entry point
 
-## 📝 License
+api/                    # Vercel serverless functions
+├── chat.js             # AI chat endpoint
+├── chat-tools.js       # Tool execution endpoint
+└── mcp.js              # MCP HTTP transport
+
+mcp-server/             # MCP server (shared tools)
+├── server.js           # Tool registration
+├── index.js            # stdio entry point
+├── db.js               # Neon connection
+└── tools/              # Tool implementations
+
+public/index.html       # Dashboard SPA
+```
+
+## Tech Stack
+
+Node.js, Express, PostgreSQL (Neon), Anthropic Claude Haiku, MCP SDK, Vercel, Axios
+
+## License
 
 ISC
-
----
-
-**Note**: This project has been reorganized for better maintainability. The original `server-neon.js` file is preserved for reference, but the new modular structure in `src/` is recommended for development and production use.
