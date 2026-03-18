@@ -1425,7 +1425,7 @@
             }).catch(() => {});
         }
 
-        function showNameModal() {
+        function showNameModal(onComplete) {
             const modal = document.getElementById('nameModal');
             const input = document.getElementById('nameModalInput');
             const btn = document.getElementById('nameModalBtn');
@@ -1434,14 +1434,16 @@
             document.getElementById('nameModalDesc').textContent = t('nameModalDesc');
             input.placeholder = t('nameModalPlaceholder');
             btn.textContent = t('nameModalBtn');
+            input.value = '';
+            btn.disabled = true;
 
             modal.style.display = 'flex';
             requestAnimationFrame(() => modal.classList.add('visible'));
             input.focus();
 
-            input.addEventListener('input', () => {
+            function onInput() {
                 btn.disabled = !input.value.trim();
-            });
+            }
 
             function submit() {
                 const name = input.value.trim();
@@ -1449,21 +1451,27 @@
                 setUserName(name);
                 modal.classList.remove('visible');
                 setTimeout(() => { modal.style.display = 'none'; }, 300);
-                logAccess('page_visit', { first_visit: true });
+                cleanup();
+                if (onComplete) onComplete(name);
             }
 
-            btn.addEventListener('click', submit);
-            input.addEventListener('keydown', (e) => {
+            function onKeydown(e) {
                 if (e.key === 'Enter') submit();
-            });
+            }
+
+            function cleanup() {
+                input.removeEventListener('input', onInput);
+                btn.removeEventListener('click', submit);
+                input.removeEventListener('keydown', onKeydown);
+            }
+
+            input.addEventListener('input', onInput);
+            btn.addEventListener('click', submit);
+            input.addEventListener('keydown', onKeydown);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            if (!getUserName()) {
-                showNameModal();
-            } else {
-                logAccess('page_visit');
-            }
+            logAccess('page_visit');
         });
 
         // ─── Chat Widget ──────────────────────────────────────────────
@@ -1697,15 +1705,27 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
         // ─── UI helpers ──────────────────────────────────────────────
         function toggleChat() {
             const panel = document.getElementById('chatPanel');
-            const toggle = document.getElementById('chatToggle');
             const isHidden = panel.classList.contains('hidden');
-            panel.classList.toggle('hidden', !isHidden);
-            toggle.classList.toggle('active', isHidden);
+
             if (isHidden) {
-                logAccess('chat_opened');
-                document.getElementById('chatInput').focus();
-                scrollChat();
+                if (!getUserName()) {
+                    showNameModal(() => openChatPanel());
+                    return;
+                }
+                openChatPanel();
+            } else {
+                panel.classList.add('hidden');
+                document.getElementById('chatToggle').classList.remove('active');
             }
+        }
+
+        function openChatPanel() {
+            const panel = document.getElementById('chatPanel');
+            panel.classList.remove('hidden');
+            document.getElementById('chatToggle').classList.add('active');
+            logAccess('chat_opened');
+            document.getElementById('chatInput').focus();
+            scrollChat();
         }
 
         function scrollChat() {
