@@ -1,7 +1,7 @@
-const { neon } = require('@neondatabase/serverless');
+const { createSql } = require('../src/config/db');
 
 function getDb() {
-  return neon(process.env.DATABASE_URL);
+  return createSql(process.env.DATABASE_URL);
 }
 
 module.exports = async (req, res) => {

@@ -1,8 +1,8 @@
 const { toolDefs, buildSystemPrompt } = require('./lib/tools');
-const { neon } = require('@neondatabase/serverless');
+const { createSql } = require('../src/config/db');
 
 function getLogDb() {
-  return neon(process.env.DATABASE_URL);
+  return createSql(process.env.DATABASE_URL);
 }
 
 async function logChatRequest(req, { user_name, userMessage, aiResponse, success, errorMessage }) {

@@ -1,8 +1,8 @@
-const { neon } = require('@neondatabase/serverless');
+const { createSql } = require('./db');
 require('dotenv').config();
 
-// Neon database connection
-const sql = neon(process.env.DATABASE_URL);
+// Database connection (Neon serverless or standard PostgreSQL via adapter)
+const sql = createSql(process.env.DATABASE_URL);
 
 // Initialize database table
 async function initializeDatabase() {
@@ -83,7 +83,7 @@ async function initializeDatabase() {
       ON access_logs(action)
     `;
     
-    console.log('Neon database initialized successfully with emergency types and cities');
+    console.log('Database initialized successfully with emergency types and cities');
   } catch (error) {
     console.error('Error initializing database:', error);
   }

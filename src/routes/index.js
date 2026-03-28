@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { sql } = require('../config/database');
 
 const router = express.Router();
 
@@ -9,6 +10,16 @@ const occurrencesRoutes = require('./occurrences');
 const referenceRoutes = require('./reference');
 const exportRoutes = require('./export');
 const logsRoutes = require('./logs');
+
+// Health check endpoint
+router.get('/health', async (req, res) => {
+  try {
+    await sql`SELECT 1`;
+    res.json({ status: 'ok' });
+  } catch (err) {
+    res.status(503).json({ status: 'error', message: err.message });
+  }
+});
 
 // Mount route modules
 router.use('/occurrences', occurrencesRoutes);
