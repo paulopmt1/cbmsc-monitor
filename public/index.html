@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CBM SC Monitor - Ocorrências</title>
     <link rel="icon" type="image/png" href="/favicon.png">
+    <!-- Chrome Built-in AI Origin Trial: register at developer.chrome.com/origintrials -->
+    <!-- <meta http-equiv="origin-trial" content="REPLACE_WITH_TOKEN"> -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
@@ -797,6 +799,16 @@
             color: #065f46;
         }
 
+        .provider-badge.chrome {
+            background: #4285f4;
+            color: white;
+        }
+
+        .provider-toggle button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         @media (max-width: 480px) {
             .chat-panel {
                 width: calc(100vw - 48px);
@@ -1016,6 +1028,10 @@
                 chatModelName: 'Nome do modelo (opcional)',
                 chatModelPlaceholder: 'Deixe vazio para usar o padrão',
                 chatProxyNote: 'Requer o proxy local: <code style="background:#e8e8e8;padding:1px 4px;border-radius:3px;font-size:0.68rem;">node local-proxy.js</code><br>(encaminha para LM Studio com headers CORS)',
+                chatChromeModel: 'Chrome AI',
+                chatQueryingData: 'Consultando dados...',
+                chatErrorChromeUnavailable: 'Chrome AI não está disponível neste navegador.',
+                chatErrorChromeSession: 'Erro ao iniciar sessão Chrome AI.',
                 chatGreeting: '<p>Olá! Sou o assistente do <strong>CBM SC Monitor</strong>. Posso analisar dados de ocorrências de emergência em Santa Catarina.</p><p>Experimente perguntar:</p>',
                 chatPlaceholder: 'Pergunte sobre ocorrências...',
                 chatSuggestions: [
@@ -1058,6 +1074,10 @@
                 chatTitle: 'CBM SC Assistant',
                 chatSettings: 'Settings',
                 chatLocalModel: 'Local Model',
+                chatChromeModel: 'Chrome AI',
+                chatQueryingData: 'Querying data...',
+                chatErrorChromeUnavailable: 'Chrome AI is not available in this browser.',
+                chatErrorChromeSession: 'Failed to start Chrome AI session.',
                 chatLocalUrl: 'Local model URL',
                 chatModelName: 'Model name (optional)',
                 chatModelPlaceholder: 'Leave empty to use default',
@@ -1088,6 +1108,9 @@
         function setLang(lang) {
             currentLang = lang;
             localStorage.setItem(LANG_KEY, lang);
+            if (chatConfig.provider === 'chrome') {
+                destroyChromeSession();
+            }
             applyLanguage();
         }
 
@@ -1497,20 +1520,277 @@
 
         let chatConfig = loadChatConfig();
 
+        // ─── Chrome AI state ──────────────────────────────────────────────
+        let chromeSession = null;
+        let chromeAIAvailable = false;
+        let chromeSessionLang = null;
+
         function setProvider(p) {
+            if (chatConfig.provider === 'chrome' && p !== 'chrome') {
+                destroyChromeSession();
+            }
             chatConfig.provider = p;
             saveChatConfig(chatConfig);
             updateProviderUI();
         }
 
         function updateProviderUI() {
-            const isLocal = chatConfig.provider === 'local';
-            document.getElementById('provAnthropicBtn').classList.toggle('active', !isLocal);
-            document.getElementById('provLocalBtn').classList.toggle('active', isLocal);
-            document.getElementById('localSettings').style.display = isLocal ? 'flex' : 'none';
+            const p = chatConfig.provider;
+            document.getElementById('provAnthropicBtn').classList.toggle('active', p === 'anthropic');
+            document.getElementById('provLocalBtn').classList.toggle('active', p === 'local');
+            document.getElementById('provChromeBtn').classList.toggle('active', p === 'chrome');
+            document.getElementById('localSettings').style.display = p === 'local' ? 'flex' : 'none';
             const badge = document.getElementById('providerBadge');
-            badge.textContent = isLocal ? 'Local' : 'Anthropic';
-            badge.className = 'provider-badge ' + (isLocal ? 'local' : 'anthropic');
+            const labels = { local: 'Local', chrome: 'Chrome AI', anthropic: 'Anthropic' };
+            badge.textContent = labels[p] || 'Anthropic';
+            badge.className = 'provider-badge ' + (p || 'anthropic');
+        }
+
+        // ─── Chrome AI Functions ──────────────────────────────────────────
+        function destroyChromeSession() {
+            if (chromeSession) {
+                try { chromeSession.destroy(); } catch (_) {}
+                chromeSession = null;
+                chromeSessionLang = null;
+            }
+        }
+
+        async function checkChromeAIAvailability() {
+            const btn = document.getElementById('provChromeBtn');
+            if (!btn) return;
+            try {
+                if (typeof LanguageModel === 'undefined') throw new Error();
+                const status = await LanguageModel.availability();
+                chromeAIAvailable = status !== 'unavailable';
+            } catch (_) {
+                chromeAIAvailable = false;
+            }
+            btn.disabled = !chromeAIAvailable;
+            if (!chromeAIAvailable) {
+                btn.title = t('chatErrorChromeUnavailable');
+                if (chatConfig.provider === 'chrome') {
+                    setProvider('anthropic');
+                }
+            }
+        }
+
+        function buildChromeSystemPrompt() {
+            const today = new Date().toISOString().split('T')[0];
+            if (currentLang === 'en') {
+                return `You are the CBM SC Monitor assistant. Respond in English.
+Today's date: ${today}.
+
+Emergency types (use exact names): Acidente de Trânsito, Atendimento Pré-Hospitalar, Auxílios/Apoios, Averiguação/Corte de Árvore, Averiguação/Manejo de Inseto, Ação Preventiva Social, Ações Preventivas, Diversos, Incêndio, Produtos Perigosos, Risco Potencial, Salvamento/Busca/Resgate.
+
+IMPORTANT RULE: NEVER invent data. If you need database data, use a tool.
+
+To use a tool, respond ONLY with TOOL: followed by JSON. Example:
+TOOL: {"tool":"count_occurrences","args":{"start_date":"2026-03-01","end_date":"2026-03-31"}}
+
+Available tools:
+1. count_occurrences(start_date, end_date, [emergency_type], [city])
+2. list_occurrence_types([start_date], [end_date])
+3. get_occurrences(start_date, end_date, [emergency_type], [city], [limit=10]) ← use limit<=10
+4. best_time_analysis([start_date], [end_date], [emergency_type], [city])
+5. list_cities()
+
+When you have sufficient data, respond normally in markdown.`;
+            }
+            return `Você é o assistente do CBM SC Monitor. Responda em Português (Brasil).
+Data de hoje: ${today}.
+
+Tipos de emergência (use estes nomes exatos): Acidente de Trânsito, Atendimento Pré-Hospitalar, Auxílios/Apoios, Averiguação/Corte de Árvore, Averiguação/Manejo de Inseto, Ação Preventiva Social, Ações Preventivas, Diversos, Incêndio, Produtos Perigosos, Risco Potencial, Salvamento/Busca/Resgate.
+
+REGRA: NUNCA invente dados. Se precisar de dados do banco, use uma ferramenta.
+
+Para usar uma ferramenta, responda APENAS com TOOL: seguido do JSON. Exemplo:
+TOOL: {"tool":"count_occurrences","args":{"start_date":"2026-03-01","end_date":"2026-03-31"}}
+
+Ferramentas disponíveis:
+1. count_occurrences(start_date, end_date, [emergency_type], [city])
+2. list_occurrence_types([start_date], [end_date])
+3. get_occurrences(start_date, end_date, [emergency_type], [city], [limit=10])  ← use limit<=10
+4. best_time_analysis([start_date], [end_date], [emergency_type], [city])
+5. list_cities()
+
+Quando tiver dados suficientes, responda normalmente em markdown.`;
+        }
+
+        function parseToolCall(response) {
+            const trimmed = response.trimStart();
+            if (trimmed.startsWith('TOOL:')) {
+                const jsonStr = trimmed.slice(5).trim();
+                try {
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed.tool) return parsed;
+                } catch (_) {}
+                const match = jsonStr.match(/\{[\s\S]*\}/);
+                if (match) {
+                    try {
+                        const p = JSON.parse(match[0]);
+                        if (p.tool) return p;
+                    } catch (_) {}
+                }
+            }
+            if (trimmed.startsWith('{')) {
+                try {
+                    const p = JSON.parse(trimmed);
+                    if (p.tool) return p;
+                } catch (_) {}
+            }
+            return null;
+        }
+
+        async function initChromeSession() {
+            if (chromeSession && chromeSessionLang === currentLang) {
+                return chromeSession;
+            }
+            destroyChromeSession();
+            showTyping();
+            try {
+                const systemPrompt = buildChromeSystemPrompt();
+                chromeSession = await LanguageModel.create({
+                    initialPrompts: [{ role: 'system', content: systemPrompt }],
+                });
+                chromeSessionLang = currentLang;
+                hideTyping();
+                return chromeSession;
+            } catch (err) {
+                hideTyping();
+                throw err;
+            }
+        }
+
+        async function sendChatChrome(userText) {
+            const session = await initChromeSession();
+            showTyping();
+
+            const msgEl = appendChat('assistant', '');
+            const contentEl = msgEl.querySelector('.message-content');
+
+            let step = 0;
+            const maxSteps = 5;
+            let currentPrompt = userText;
+            let isFirstStream = true;
+
+            while (step < maxSteps) {
+                let response;
+                if (step === 0) {
+                    // First step: stream the response
+                    const stream = session.promptStreaming(currentPrompt);
+                    let fullText = '';
+                    for await (const chunk of stream) {
+                        fullText = chunk;
+                        contentEl.innerHTML = marked.parse(fullText);
+                        scrollChat();
+                    }
+                    response = fullText;
+                    isFirstStream = false;
+                } else {
+                    // Subsequent steps: silent prompt
+                    response = await session.prompt(currentPrompt);
+                }
+
+                const parsed = parseToolCall(response);
+                if (!parsed) {
+                    // Final answer
+                    hideTyping();
+                    if (step === 0) {
+                        // Already streamed
+                    } else {
+                        contentEl.innerHTML = marked.parse(response);
+                        scrollChat();
+                    }
+                    return response;
+                }
+
+                // It's a tool call
+                if (step === 0) {
+                    // Clear the streamed content and show tool execution indicator
+                    contentEl.innerHTML = '';
+                }
+
+                updateTypingLabel(t('chatQueryingData') + ` (${step + 1}/5)`);
+
+                // Inject tool call into session history
+                try {
+                    await session.append([{ role: 'assistant', content: response.trim() }]);
+                } catch (e) {
+                    console.warn('Failed to append to session:', e);
+                }
+
+                // Execute tool
+                let result;
+                try {
+                    const res = await fetch(API_BASE + '/api/chat-tools', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ calls: [{ name: parsed.tool, args: parsed.args }] }),
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+                    result = data.results?.[0]?.result || {};
+                } catch (err) {
+                    result = { error: err.message };
+                }
+
+                // Truncate result to ~2000 chars
+                let resultText = JSON.stringify(result);
+                if (resultText.length > 2000) {
+                    if (result.cities) result = { ...result, cities: result.cities.slice(0, 30) };
+                    if (result.data) result = { ...result, data: result.data.slice(0, 15) };
+                    if (result.by_type) result = { ...result, by_type: result.by_type.slice(0, 20) };
+                    resultText = JSON.stringify(result);
+                    if (resultText.length > 2000) resultText = resultText.slice(0, 2000) + '...(truncated)';
+                }
+
+                // Inject tool result into session
+                try {
+                    await session.append([
+                        { role: 'user', content: 'Tool result from ' + parsed.tool + ':\n' + resultText }
+                    ]);
+                } catch (e) {
+                    console.warn('Failed to append tool result:', e);
+                }
+
+                // Re-anchor on first continuation
+                if (step === 0) {
+                    currentPrompt = 'Based on the data above, answer: ' + userText;
+                } else {
+                    currentPrompt = 'Continue.';
+                }
+
+                step++;
+            }
+
+            // Max steps exceeded, ask for final answer without tools
+            try {
+                const finalResponse = await session.prompt(
+                    currentLang === 'pt'
+                        ? 'Não use mais ferramentas. Responda com o que sabe.'
+                        : 'Do not use more tools. Answer with what you know.'
+                );
+                hideTyping();
+                contentEl.innerHTML = marked.parse(finalResponse);
+                scrollChat();
+                return finalResponse;
+            } catch (err) {
+                hideTyping();
+                throw err;
+            }
+        }
+
+        function updateTypingLabel(label) {
+            const typingEl = document.getElementById('chatTyping');
+            if (typingEl) {
+                let labelEl = typingEl.querySelector('.typing-label');
+                if (!labelEl) {
+                    labelEl = document.createElement('span');
+                    labelEl.className = 'typing-label';
+                    typingEl.appendChild(labelEl);
+                }
+                labelEl.textContent = label;
+            }
         }
 
         function toggleSettings() {
@@ -1789,7 +2069,27 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
             showTyping();
 
             try {
-                if (chatConfig.provider === 'local') {
+                if (chatConfig.provider === 'chrome') {
+                    if (!chromeAIAvailable) {
+                        hideTyping();
+                        const errEl = appendChat('assistant', '');
+                        errEl.className = 'chat-message error';
+                        errEl.querySelector('.message-content').textContent = t('chatErrorChromeUnavailable');
+                        logAccess('chat_message', { provider: 'chrome', user_message: text, success: false, error: 'Chrome AI unavailable' });
+                        return;
+                    }
+                    try {
+                        const fullText = await sendChatChrome(text);
+                        chatMessages.push({ role: 'assistant', content: fullText });
+                        logAccess('chat_message', { provider: 'chrome', user_message: text, ai_response: fullText.substring(0, 200), success: true });
+                    } catch (err) {
+                        hideTyping();
+                        const errEl = appendChat('assistant', '');
+                        errEl.className = 'chat-message error';
+                        errEl.querySelector('.message-content').textContent = t('chatErrorChromeSession') + ': ' + err.message;
+                        logAccess('chat_message', { provider: 'chrome', user_message: text, success: false, error: err.message });
+                    }
+                } else if (chatConfig.provider === 'local') {
                     const fullText = await sendChatLocal(text);
                     hideTyping();
                     const msgEl = appendChat('assistant', '');
@@ -1877,6 +2177,7 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
 
             updateProviderUI();
             applyLanguage();
+            checkChromeAIAvailability();
         });
     </script>
 
@@ -1894,6 +2195,7 @@ Seja conciso mas informativo. Use formatação markdown quando apropriado (lista
                 <div class="provider-toggle">
                     <button id="provAnthropicBtn" class="active" onclick="setProvider('anthropic')">Anthropic</button>
                     <button id="provLocalBtn" onclick="setProvider('local')" data-i18n="chatLocalModel">Modelo Local</button>
+                    <button id="provChromeBtn" onclick="setProvider('chrome')" data-i18n="chatChromeModel">Chrome AI</button>
                 </div>
                 <div id="localSettings" style="display:none;flex-direction:column;gap:8px;">
                     <div>
