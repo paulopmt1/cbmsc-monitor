@@ -1649,8 +1649,10 @@ Quando tiver dados suficientes, responda normalmente em markdown.`;
             showTyping();
             try {
                 const systemPrompt = buildChromeSystemPrompt();
+                const outputLang = currentLang === 'pt' ? 'es' : 'en';
                 chromeSession = await LanguageModel.create({
                     initialPrompts: [{ role: 'system', content: systemPrompt }],
+                    expectedOutputs: [{ type: 'text', languages: [outputLang] }],
                 });
                 chromeSessionLang = currentLang;
                 hideTyping();
