@@ -31,7 +31,7 @@ cp env.example .env
 node src/server.js
 ```
 
-The server runs on `http://localhost:3000`.
+The server runs on `http://localhost:3005`.
 
 ### Environment Variables
 
@@ -39,7 +39,7 @@ The server runs on `http://localhost:3000`.
 |----------|-------------|----------|
 | `DATABASE_URL` | Neon PostgreSQL connection string | Yes |
 | `ANTHROPIC_API_KEY` | Anthropic API key (for AI chat) | No |
-| `PORT` | Server port (default: 3000) | No |
+| `PORT` | Server port (default: 3005) | No |
 
 ## API Endpoints
 

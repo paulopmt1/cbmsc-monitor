@@ -1,13 +1,15 @@
 const { toolDefs, buildSystemPrompt } = require('./lib/tools');
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 
-function getLogDb() {
-  return neon(process.env.DATABASE_URL);
-}
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? 'require' : false,
+  max: 3,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 async function logChatRequest(req, { user_name, userMessage, aiResponse, success, errorMessage }) {
   try {
-    const sql = getLogDb();
     const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
     const details = {

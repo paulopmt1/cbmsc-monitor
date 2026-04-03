@@ -1,8 +1,13 @@
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 require('dotenv').config();
 
-// Neon database connection
-const sql = neon(process.env.DATABASE_URL);
+// PostgreSQL database connection with pooling
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? 'require' : false,
+  max: 10,
+  idle_timeout: 30,
+  connect_timeout: 10,
+});
 
 // Initialize database table
 async function initializeDatabase() {
@@ -83,7 +88,7 @@ async function initializeDatabase() {
       ON access_logs(action)
     `;
     
-    console.log('Neon database initialized successfully with emergency types and cities');
+    console.log('Database initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
   }

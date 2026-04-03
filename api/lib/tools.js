@@ -1,8 +1,11 @@
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 
-function getDb() {
-  return neon(process.env.DATABASE_URL);
-}
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? 'require' : false,
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 function buildSystemPrompt(lang = 'pt') {
   const today = new Date().toISOString().split('T')[0];
@@ -55,7 +58,6 @@ function withTimeout(fn, ms = 8000) {
 }
 
 async function countOccurrences({ start_date, end_date, emergency_type, city } = {}) {
-  const sql = getDb();
   const startDate = new Date(start_date);
   const endDate = new Date(end_date + 'T23:59:59');
   if (emergency_type) {
@@ -77,7 +79,6 @@ async function countOccurrences({ start_date, end_date, emergency_type, city } =
 }
 
 async function listCities() {
-  const sql = getDb();
   const result = await sql`
     SELECT c.id_cidade as id, c.nome_cidade as name, COUNT(o.id_ocorrencia)::int as occurrence_count
     FROM cities c LEFT JOIN occurrences o ON c.id_cidade = o.id_cidade
@@ -87,7 +88,6 @@ async function listCities() {
 }
 
 async function listTypes({ start_date, end_date } = {}) {
-  const sql = getDb();
   const result = start_date && end_date
     ? await sql`SELECT t.title, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id WHERE o.ts_ocorrencia BETWEEN ${new Date(start_date)} AND ${new Date(end_date + 'T23:59:59')} GROUP BY t.title ORDER BY count DESC`
     : await sql`SELECT t.title, COUNT(*)::int as count FROM occurrences o LEFT JOIN tp_emergencia t ON o.id_tp_emergencia = t.id GROUP BY t.title ORDER BY count DESC`;
@@ -95,7 +95,6 @@ async function listTypes({ start_date, end_date } = {}) {
 }
 
 async function getOccurrences({ start_date, end_date, emergency_type, city, limit = 50 } = {}) {
-  const sql = getDb();
   const startDate = new Date(start_date);
   const endDate = new Date(end_date + 'T23:59:59');
   const lim = Math.min(limit || 50, 200);
@@ -113,7 +112,6 @@ async function getOccurrences({ start_date, end_date, emergency_type, city, limi
 }
 
 async function bestTimeAnalysis({ start_date, end_date, emergency_type, city } = {}) {
-  const sql = getDb();
   const s = start_date ? new Date(start_date) : new Date(Date.now() - 90 * 86400000);
   const e = end_date ? new Date(end_date + 'T23:59:59') : new Date();
   let rows;

@@ -1,8 +1,11 @@
-const { neon } = require('@neondatabase/serverless');
+const postgres = require('postgres');
 
-function getDb() {
-  return neon(process.env.DATABASE_URL);
-}
+const sql = postgres(process.env.DATABASE_URL, {
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? 'require' : false,
+  max: 3,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -27,7 +30,6 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const sql = getDb();
     const ip = req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
