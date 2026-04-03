@@ -9,12 +9,14 @@ const occurrencesRoutes = require('./occurrences');
 const referenceRoutes = require('./reference');
 const exportRoutes = require('./export');
 const logsRoutes = require('./logs');
+const chatToolsRoutes = require('./chat-tools');
 
 // Mount route modules
 router.use('/occurrences', occurrencesRoutes);
 router.use('/', referenceRoutes);
 router.use('/export-db', exportRoutes);
 router.use('/api/log', logsRoutes);
+router.use('/api/chat-tools', chatToolsRoutes);
 
 // Root endpoint - serve the web interface
 router.get('/', (req, res) => {
