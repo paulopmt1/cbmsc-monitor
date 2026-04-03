@@ -2,10 +2,10 @@
   "name": "cmbsc-monitor",
   "version": "1.0.0",
   "description": "Node server with readOccurrences endpoint",
-  "main": "server-neon.js",
+  "main": "src/app.js",
   "scripts": {
-    "start": "node server-neon.js",
-    "dev": "nodemon server-neon.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "proxy": "node local-proxy.js",
     "test": "jest"
   },

@@ -18,7 +18,7 @@
       "use": "@vercel/node"
     },
     {
-      "src": "server-neon.js",
+      "src": "api/index.js",
       "use": "@vercel/node"
     }
   ],
@@ -41,7 +41,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/server-neon.js"
+      "dest": "/api/index.js"
     }
   ],
   "env": {
