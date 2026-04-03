@@ -1,6 +1,26 @@
 version: '3.9'
 
 services:
+  app:
+    image: node:22-alpine
+    container_name: cbmsc-app
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -lc "npm install && npm run dev"
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DATABASE_URL: postgresql://cbmsc:cbmsc_dev_password@postgres:5432/cbmsc_monitor
+      # ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    volumes:
+      - ./:/app
+      - cbmsc_node_modules:/app/node_modules
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     container_name: cbmsc-postgres
@@ -34,3 +54,4 @@ services:
 
 volumes:
   postgres_data:
+  cbmsc_node_modules:
