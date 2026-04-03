@@ -24,19 +24,19 @@
   ],
   "routes": [
     {
-      "src": "/mcp",
+      "src": "^/mcp/?$",
       "dest": "/api/mcp.js"
     },
     {
-      "src": "/api/chat-tools",
+      "src": "^/api/chat-tools/?$",
       "dest": "/api/chat-tools.js"
     },
     {
-      "src": "/api/chat",
+      "src": "^/api/chat/?$",
       "dest": "/api/chat.js"
     },
     {
-      "src": "/api/log",
+      "src": "^/api/log/?$",
       "dest": "/api/log.js"
     },
     {
@@ -47,4 +47,4 @@
   "env": {
     "NODE_ENV": "production"
   }
-} 
+}

@@ -1,5 +1,8 @@
-// Main entry point for the organized server
-// This file replaces the original server-neon.js with a modular structure
+// Vercel serverless entrypoint.
+//
+// Important: do not call `listen()` in serverless. Export the Express app
+// so Vercel can invoke it per-request.
+const app = require( './src/app' );
 
-// Start the server using the organized modules
-require('./src/server.js'); 
+module.exports = app;
+
